@@ -56,42 +56,7 @@ Data modeling follows the **Medallion Architecture** to ensure data quality and 
 
 ## 🧩 Architecture Diagram
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'ui-sans-serif, system-ui, sans-serif' }}}%%
-graph LR
-    A[CoinGecko API] -->|PyAirbyte| B
-    B -->|dbt| C
-    C -->|dbt incremental| D
-    D --> E[Streamlit Dashboard]
-
-    F[Dagster Orchestrator] -.->|manages| B
-    F -.->|manages| C
-    F -.->|manages| D
-
-    subgraph DuckDB ["DuckDB Database"]
-        B[Bronze Layer<br/>raw.bitcoin_prices]
-        C[Silver Layer<br/>staging.stg_bitcoin_prices]
-        D[Gold Layer<br/>mart.fct_daily_btc_candlesticks]
-    end
-
-    %% Class Definitions: Neutral backgrounds with high-contrast borders
-    classDef external fill:#f8fafc,stroke:#e11d48,stroke-width:2px,color:#0f172a
-    classDef bronze fill:#fefce8,stroke:#eab308,stroke-width:2px,color:#854d0e
-    classDef silver fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#166534
-    classDef gold fill:#eff6ff,stroke:#3b82f6,stroke-width:2px,color:#1e40af
-    classDef dashboard fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#6b21a8
-    classDef orchestrator fill:#ffffff,stroke:#64748b,stroke-width:2px,stroke-dasharray: 5 5,color:#334155
-    classDef database fill:#f1f5f9,stroke:#334155,stroke-width:2px,stroke-dasharray: 8 4,color:#1e293b
-
-    %% Apply Classes
-    class A external
-    class B bronze
-    class C silver
-    class D gold
-    class E dashboard
-    class F orchestrator
-    class DuckDB database
-```
+![Architecture Diagram](docs/architecture.svg)
 
 ---
 

@@ -1,0 +1,23 @@
+graph LR
+    A[CoinGecko API] -->|PyAirbyte| B[Bronze Layer<br/>raw.bitcoin_prices]
+    B -->|dbt| C[Silver Layer<br/>staging.stg_bitcoin_prices]
+    C -->|dbt incremental| D[Gold Layer<br/>mart.fct_daily_btc_candlesticks]
+    D --> E[Streamlit<br/>Dashboard]
+
+    F[Dagster Orchestrator] -.->|manages| B
+    F -.->|manages| C
+    F -.->|manages| D
+
+    subgraph DuckDB["DuckDB Database"]
+        B
+        C
+        D
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#ff9,stroke:#333,stroke-width:2px
+    style C fill:#9f9,stroke:#333,stroke-width:2px
+    style D fill:#99f,stroke:#333,stroke-width:2px
+    style E fill:#f99,stroke:#333,stroke-width:2px
+    style F fill:#fff,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style DuckDB fill:#eef,stroke:#33f,stroke-width:3px,stroke-dasharray: 5 5
