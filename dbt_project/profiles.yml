@@ -3,7 +3,7 @@ crypto_elt_pipeline:
   outputs:
     dev:
       type: duckdb
-      # ".." goes up one level from 'dbt_project/' to the root
-      # "/data/" enters your data directory
+      # Resolves the database file relative to the dbt project root
       path: '../data/crypto.duckdb'
+      # Configures parallel execution for concurrent model materialization
       threads: 4

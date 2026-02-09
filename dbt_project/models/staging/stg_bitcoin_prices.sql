@@ -7,11 +7,14 @@
 }}
 
 with raw_data as (
-    -- 1. Source Reference
+    -- 1. Bronze-to-Silver Ingestion
+    -- References the raw landing zone managed by PyAirbyte/Dagster.
     select * from {{ source('coingecko', 'bitcoin_prices') }}
 
     {% if is_incremental() %}
-        -- 2. Incremental Logic with "Safety Net"
+        -- 2. Performance Optimization & Late Data Handling
+        -- Filters for new records using a 1-hour lookback window to ensure 
+        -- zero data loss during intra-hour refreshes.
         where
             timestamp
             >= (select max(timestamp) - interval '1 hour' from {{ this }})
@@ -20,7 +23,8 @@ with raw_data as (
 
 final as (
     select
-        -- 3. Explicit Casting for Robustness
+        -- 3. Schema Enforcement (Silver Layer)
+        -- Normalizes data types to ensure consistent analytical downstream performance.
         coin::varchar as coin,
         currency::varchar as currency,
         timestamp::timestamp as timestamp,

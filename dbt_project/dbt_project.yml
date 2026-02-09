@@ -2,7 +2,7 @@ name: 'crypto_elt_pipeline'
 version: '1.0.0'
 config-version: 2
 
-profile: 'crypto_elt_pipeline' # Ensure this matches your profiles.yml
+profile: 'crypto_elt_pipeline'
 
 model-paths: ["models"]
 test-paths: ["tests"]
@@ -10,11 +10,11 @@ seed-paths: ["seeds"]
 
 models:
   crypto_elt_pipeline:
-    # Everything in the staging folder goes to the 'staging' schema
+    # Silver Layer: Cleaned and normalized data
     staging:
       +materialized: incremental
       +schema: staging
-    # Everything in the marts folder goes to the 'mart' schema
+    # Gold Layer: Analytical business models
     marts:
       +materialized: table
       +schema: mart

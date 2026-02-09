@@ -9,24 +9,26 @@ from dagster_dbt import (
     dbt_assets,
 )
 
-# 1. Initialize the Project Object
+# 1. dbt Project Initialization
+# Resolves the project path and prepares the manifest during development.
 DBT_PROJECT_DIR = Path(__file__).parents[4] / "dbt_project"
 dbt_project = DbtProject(project_dir=DBT_PROJECT_DIR)
 dbt_project.prepare_if_dev()
 
 
-# 2. Translator for UI organization
+# 2. Custom Metadata Translator
+# Organizes the Dagster UI by grouping assets based on their dbt FQN.
 class CustomDagsterDbtTranslator(DagsterDbtTranslator):
     def get_group_name(self, dbt_resource_props):
         return dbt_resource_props.get("fqn", [])[1]
 
-    # This ensures dbt tests are mapped to formal Asset Checks
+    # Maps dbt tests to native Dagster Asset Checks.
     def get_asset_check_key(self, dbt_resource_props):
         return super().get_asset_check_key(dbt_resource_props)
 
 
-# 3. CONFIGURE SETTINGS (The Missing Piece)
-# We instantiate the translator with specific settings to enable checks.
+# 3. Translator Settings
+# Configures the translator to expose both model and source tests as checks.
 translator_instance = CustomDagsterDbtTranslator(
     settings=DagsterDbtTranslatorSettings(
         enable_asset_checks=True,
@@ -35,12 +37,13 @@ translator_instance = CustomDagsterDbtTranslator(
 )
 
 
-# 4. The Assets
+# 4. dbt Asset Definitions
+# Materializes dbt models and executes tests using the Select-based build command.
 @dbt_assets(
     manifest=dbt_project.manifest_path,
-    dagster_dbt_translator=translator_instance,  # Use the configured instance
+    dagster_dbt_translator=translator_instance,
     select="fqn:*",
 )
 def crypto_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource):
-    # 'build' executes the models and the checks in one atomic step
+    # 'build' runs models and checks atomically; results are streamed to the UI.
     yield from dbt.cli(["build", "--select", "fqn:*"], context=context).stream()

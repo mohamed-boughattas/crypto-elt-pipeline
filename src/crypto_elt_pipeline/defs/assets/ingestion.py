@@ -1,5 +1,3 @@
-import logging
-import os
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from io import StringIO
@@ -10,17 +8,13 @@ import pandera.polars as pa
 import polars as pl
 
 # ------------------------------------------------------------------
-# Suppress PyAirbyte logging chatter
-# ------------------------------------------------------------------
-logging.getLogger("airbyte").setLevel(logging.CRITICAL)
-os.environ["AIRBYTE_LOG_LEVEL"] = "ERROR"
-
-# ------------------------------------------------------------------
-# Schema Definitions
+# Data Contracts (Pandera)
 # ------------------------------------------------------------------
 
 
 class RawMarketChartSchema(pa.DataFrameModel):
+    """Validates the raw nested structure from CoinGecko API."""
+
     prices: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
     market_caps: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
     total_volumes: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
@@ -30,31 +24,33 @@ class RawMarketChartSchema(pa.DataFrameModel):
 
 
 class ProcessedPriceSchema(pa.DataFrameModel):
+    """Enforces the Silver layer schema: flattened, typed, and clean."""
+
     coin: str
     currency: str
-
-    # DEFAULT: This expects Datetime("us") (Microseconds)
+    # Standardizes on Microseconds (us) for Polars/Arrow compatibility
     timestamp: pl.Datetime = pa.Field()
-
     price: float = pa.Field(gt=0)
     market_cap: float = pa.Field(ge=0)
     volume: float = pa.Field(ge=0)
 
 
 # ------------------------------------------------------------------
-# Helper Functions
+# Ingestion Logic
 # ------------------------------------------------------------------
 
 
 def fetch_coingecko_data(
     coin_id: str, vs_currency: str, days: int, context: dg.AssetExecutionContext
 ) -> pl.DataFrame:
+    """Wrapper for PyAirbyte execution with IO suppression."""
     start_date = (datetime.now() - timedelta(days=days)).strftime("%d-%m-%Y")
     end_date = (datetime.now() + timedelta(days=1)).strftime("%d-%m-%Y")
 
-    context.log.info(f"📡 Fetching {coin_id} data...")
+    context.log.info(f"Fetching {coin_id} data...")
 
     try:
+        # Redirect stdout/stderr to suppress low-level connector noise
         with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
             source = ab.get_source(
                 "source-coingecko-coins",
@@ -110,28 +106,28 @@ def bitcoin_prices(context: dg.AssetExecutionContext) -> pl.DataFrame:
     vs_currency = "usd"
     days = 7
 
-    # 1. Extraction
+    # 1. Extraction: Ingest raw data via PyAirbyte
     raw_df = fetch_coingecko_data(coin_id, vs_currency, days, context)
 
-    # 2. Raw Validation
+    # 2. Raw Validation: Verify API response structure
     try:
         RawMarketChartSchema.validate(raw_df)
     except pa.errors.SchemaError as e:
         context.log.error(f"❌ Raw schema validation failed: {e}")
         raise
 
-    # 3. Transformation
-    context.log.info("🔄 Processing nested lists...")
+    # 3. Transformation: Flatten and normalize
+    context.log.info("Processing nested lists...")
     flat_df = raw_df.explode(["prices", "market_caps", "total_volumes"])
 
     final_df = (
         flat_df.select(
             pl.lit(coin_id).cast(pl.String).alias("coin"),
             pl.lit(vs_currency).cast(pl.String).alias("currency"),
-            # --- THE FIX ---
-            # 1. Cast integer to Datetime("ms") -> Interprets the number correctly (2026...)
-            # 2. Cast result to Datetime("us") -> Upconverts precision to Microseconds
-            # Result: Correct Date + Correct Type for Pandera
+            # Timestamp Normalization:
+            # 1. Extract Unix timestamp (int) from the list.
+            # 2. Parse as Milliseconds (ms).
+            # 3. Cast to Microseconds (us) to match standard Polars/Pandera datetime types.
             pl.col("prices")
             .list.get(0)
             .cast(pl.Int64)
@@ -150,12 +146,13 @@ def bitcoin_prices(context: dg.AssetExecutionContext) -> pl.DataFrame:
             .round(2)
             .alias("volume"),
         )
+        # Deduplicate and sort to ensure time-series integrity
         .drop_nulls(subset=["price"])
         .unique(subset=["timestamp"], keep="last")
         .sort("timestamp")
     )
 
-    # 4. Final Validation
+    # 4. Final Validation: Enforce output contract
     try:
         ProcessedPriceSchema.validate(final_df)
         context.log.info("✅ Final output validation passed")
@@ -163,7 +160,7 @@ def bitcoin_prices(context: dg.AssetExecutionContext) -> pl.DataFrame:
         context.log.error(f"❌ Output validation failed: {e}")
         raise
 
-    # 5. Metadata
+    # 5. Observability: Attach summary stats to Dagster Asset
     context.add_output_metadata(
         metadata={
             "num_rows": final_df.height,

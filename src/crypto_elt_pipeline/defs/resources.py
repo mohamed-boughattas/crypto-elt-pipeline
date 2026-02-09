@@ -6,20 +6,18 @@ from crypto_elt_pipeline.constants import DUCKDB_PATH
 from crypto_elt_pipeline.defs.assets.dbt import dbt_project
 
 # 1. IO Manager
-# We force it to a string to be 100% safe against Pydantic type checks
+# Configures DuckDB as the storage engine and Polars for efficient data loading.
 database_io_manager = DuckDBPolarsIOManager(
     database=str(DUCKDB_PATH),
 )
 
-# 2. dbt Resource (The Fix)
-# We manually extract the project directory path as a string.
-# 'dbt_project.project_dir' returns a Path object.
-# We wrap it in str() to satisfy the "Input should be a valid string" requirement.
+# 2. dbt Resource
+# Configures the dbt CLI environment.
 project_dir_str = str(dbt_project.project_dir)
 
 dbt_resource = DbtCliResource(
     project_dir=project_dir_str,
-    profiles_dir=project_dir_str,  # Pointing to the same folder where profiles.yml lives
+    profiles_dir=project_dir_str,
 )
 
 
