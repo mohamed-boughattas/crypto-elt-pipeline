@@ -9,6 +9,7 @@ dependencies = [
     "dagster-duckdb-polars>=0.28.14",
     "dbt-duckdb>=1.10.0",
     "pandas>=2.2.3",
+    "pandera[polars]>=0.29.0",
     "polars>=1.38.1",
 ]
 
