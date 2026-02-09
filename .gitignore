@@ -213,6 +213,12 @@ data/*.tmp
 data/*.parquet
 data/*.csv
 
+# Dagster
+.dg/
+.dagster/
+.tmp_dagster_home_*/
+.tmp_*
+
 # Streamlit
 .streamlit/
 
@@ -224,3 +230,8 @@ dbt_project/logs/
 # OS Junk
 .DS_Store
 Thumbs.db
+
+# Temporary files
+.tmp/
+*.tmp
+tmp/
