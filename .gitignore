@@ -213,13 +213,8 @@ data/*.tmp
 data/*.parquet
 data/*.csv
 
-# Node.js & Evidence.dev
-node_modules/
-npm-debug.log
-.evidence/
-evidence/build/
-evidence/.evidence/
-evidence/.svelte-kit/
+# Streamlit
+.streamlit/
 
 # dbt
 dbt_project/target/
