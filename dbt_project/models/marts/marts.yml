@@ -1,0 +1,44 @@
+version: 2
+
+models:
+  - name: fct_daily_btc_candlesticks
+    description: "Daily OHLC (Open, High, Low, Close) candlestick data for Bitcoin."
+    
+    # Bonus: Model-level tests for logical consistency
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "high_price >= low_price"
+          severity: error
+      - dbt_utils.expression_is_true:
+          expression: "high_price >= open_price and high_price >= close_price"
+      - dbt_utils.expression_is_true:
+          expression: "low_price <= open_price and low_price <= close_price"
+
+    columns:
+      - name: date_day
+        description: "The date of the candlestick (primary key)."
+        tests:
+          - unique
+          - not_null
+
+      - name: open_price
+        description: "The price at the first recorded timestamp of the day."
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+
+      - name: close_price
+        description: "The price at the last recorded timestamp of the day."
+        tests:
+          - not_null
+
+      - name: high_price
+        description: "The highest recorded price during the day."
+        tests:
+          - not_null
+
+      - name: low_price
+        description: "The lowest recorded price during the day."
+        tests:
+          - not_null

@@ -1,0 +1,9 @@
+crypto_elt_pipeline:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # ".." goes up one level from 'dbt_project/' to the root
+      # "/data/" enters your data directory
+      path: '../data/crypto.duckdb'
+      threads: 4
