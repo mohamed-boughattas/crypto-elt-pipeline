@@ -7,25 +7,27 @@
 }}
 
 with raw_data as (
-    -- Reference the source defined in your _sources.yml
+    -- 1. Source Reference
     select * from {{ source('coingecko', 'bitcoin_prices') }}
 
     {% if is_incremental() %}
-        -- Performance optimization: only pull data since the last run
-        -- This ensures scalability as your DuckDB file grows
-        where timestamp > (select max(timestamp) from {{ this }})
+        -- 2. Incremental Logic with "Safety Net"
+        where
+            timestamp
+            >= (select max(timestamp) - interval '1 hour' from {{ this }})
     {% endif %}
 ),
 
-renamed as (
+final as (
     select
-        coin,
-        currency,
-        timestamp,
-        price,
-        market_cap,
-        volume
+        -- 3. Explicit Casting for Robustness
+        coin::varchar as coin,
+        currency::varchar as currency,
+        timestamp::timestamp as timestamp,
+        price::double as price,
+        market_cap::double as market_cap,
+        volume::double as volume
     from raw_data
 )
 
-select * from renamed
+select * from final
