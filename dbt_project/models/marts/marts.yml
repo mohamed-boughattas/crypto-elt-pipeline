@@ -4,21 +4,15 @@ models:
   - name: fct_daily_btc_candlesticks
     description: "Daily OHLC (Open, High, Low, Close) candlestick data for Bitcoin."
     
-    # Model-level tests: These run against the whole table row
     tests:
-      # 1. The Golden Rule of Candlesticks: High must be >= Low
       - dbt_utils.expression_is_true:
           expression: "high_price >= low_price"
-          config:
-            severity: error
-            
-      # 2. Shadows must be valid (High must be >= Open and Close)
       - dbt_utils.expression_is_true:
           expression: "high_price >= open_price and high_price >= close_price"
-          
-      # 3. Low must be <= Open and Close
       - dbt_utils.expression_is_true:
           expression: "low_price <= open_price and low_price <= close_price"
+      - dbt_utils.expression_is_true:
+          expression: "open_price > 0"
 
     columns:
       - name: date_day
@@ -31,20 +25,15 @@ models:
         description: "The price at the first recorded timestamp of the day."
         tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              expression: "open_price > 0"
 
       - name: close_price
-        description: "The price at the last recorded timestamp of the day."
         tests:
           - not_null
 
       - name: high_price
-        description: "The highest recorded price during the day."
         tests:
           - not_null
 
       - name: low_price
-        description: "The lowest recorded price during the day."
         tests:
           - not_null
