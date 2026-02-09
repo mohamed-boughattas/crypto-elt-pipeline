@@ -8,7 +8,7 @@ DATA_DIR = data
 # --- COMMANDS ---
 
 help:
-	@echo "Bitcoin Analytics Pipeline"
+	@echo "Bitcoin Analysis Pipeline"
 	@echo "===================================="
 	@echo ""
 	@echo "🚀 Main Commands:"
