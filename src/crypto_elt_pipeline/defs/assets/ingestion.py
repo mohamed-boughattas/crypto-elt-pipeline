@@ -106,7 +106,7 @@ def fetch_coingecko_data(
 def bitcoin_prices(context: dg.AssetExecutionContext) -> pl.DataFrame:
     coin_id = "bitcoin"
     vs_currency = "usd"
-    days = 7
+    days = 30
 
     # 1. Extraction: Ingest raw data via PyAirbyte
     raw_df = fetch_coingecko_data(coin_id, vs_currency, days, context)
