@@ -216,7 +216,8 @@ data/*.csv
 # Dagster
 .dg/
 .dagster/
-.tmp_dagster_home_*/
+.dagster_home/
+.tmp_dagster_home*
 .tmp_*
 
 # Streamlit
