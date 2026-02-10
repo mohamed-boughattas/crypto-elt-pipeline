@@ -83,7 +83,8 @@ def fetch_coingecko_data(
 
 
 @dg.asset(
-    group_name="ingestion",
+    deps=["coingecko_api"],
+    group_name="Bronze",
     kinds={"airbyte", "duckdb"},
     io_manager_key="io_manager",
     key_prefix=["raw"],
