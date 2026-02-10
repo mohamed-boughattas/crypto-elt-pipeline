@@ -20,7 +20,11 @@ dbt_project.prepare_if_dev()
 # Organizes the Dagster UI by grouping assets based on their dbt FQN.
 class CustomDagsterDbtTranslator(DagsterDbtTranslator):
     def get_group_name(self, dbt_resource_props):
-        return dbt_resource_props.get("fqn", [])[1]
+        # fqn[1] is the top-level folder under 'models/'
+        folder = dbt_resource_props.get("fqn", [])[1]
+
+        group_mapping = {"raw": "Bronze", "staging": "Silver", "marts": "Gold"}
+        return group_mapping.get(folder, "Default")
 
     # Maps dbt tests to native Dagster Asset Checks.
     def get_asset_check_key(self, dbt_resource_props):

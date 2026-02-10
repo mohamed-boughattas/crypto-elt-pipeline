@@ -14,7 +14,9 @@ models:
     staging:
       +materialized: incremental
       +schema: staging
+      +dagster_group: "Silver"
     # Gold Layer: Analytical business models
     marts:
       +materialized: table
       +schema: mart
+      +dagster_group: "Gold"
