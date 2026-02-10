@@ -56,7 +56,7 @@ Data modeling follows the **Medallion Architecture** to ensure data quality and 
 
 ## 🧩 Architecture Diagram
 
-![Architecture Diagram](docs/architecture.svg)
+![Architecture Diagram](docs/architecture_horizontal.svg)
 
 ---
 
@@ -158,8 +158,8 @@ make dashboard
 
 **Access Points:**
 
-- **Dagster UI:** http://localhost:3000
-- **Streamlit Dashboard:** http://localhost:8501
+- **Dagster UI:** <http://localhost:3000>
+- **Streamlit Dashboard:** <http://localhost:8501>
 
 ---
 
