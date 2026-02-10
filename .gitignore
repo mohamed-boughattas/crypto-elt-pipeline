@@ -213,6 +213,10 @@ data/*.tmp
 data/*.parquet
 data/*.csv
 
+# Pyairbyte
+.airbyte_cache/
+source-coingecko-coins/
+
 # Dagster
 .dg/
 .dagster/

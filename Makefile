@@ -68,6 +68,7 @@ start:
 clean:
 	@echo "🧹 Cleaning temporary files..."
 	@rm -rf dbt_project/target/ dbt_project/logs/ .dg/ .tmp*
+	@rm -rf source-coingecko-coins/
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 clean-all: clean
