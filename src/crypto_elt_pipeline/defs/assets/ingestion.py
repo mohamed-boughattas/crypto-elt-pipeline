@@ -62,6 +62,7 @@ def fetch_coingecko_data(
                     "start_date": start_date,
                     "end_date": end_date,
                 },
+                install_if_missing=True,
             )
             source.check()
             source.select_streams(["market_chart"])
