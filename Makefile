@@ -1,6 +1,10 @@
 .PHONY: help status orchestrate pipeline dashboard start clean clean-all
 
 # --- CONFIGURATION ---
+# Dynamically find the absolute path of this project to satisfy Dagster's requirement
+PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+export DAGSTER_HOME := $(PROJECT_ROOT)/.dagster_home
+
 DASHBOARD_PATH = streamlit_dashboard/dashboard.py
 DB_PATH = data/crypto.duckdb
 DATA_DIR = data
@@ -20,11 +24,11 @@ help:
 	@echo "  make pipeline    → Run data pipeline"
 	@echo "  make status      → Check system health"
 
-# Smart Setup: Only triggers uv sync if pyproject.toml is newer than the sentinel
+# Smart Setup: Ensures DAGSTER_HOME and VENV exist
 $(VENV_SENTINEL): pyproject.toml
 	@echo "📦 Syncing environment and dependencies..."
 	@uv sync
-	@mkdir -p $(DATA_DIR)
+	@mkdir -p $(DATA_DIR) $(DAGSTER_HOME)
 	@touch $(VENV_SENTINEL)
 
 setup: $(VENV_SENTINEL)
@@ -32,14 +36,17 @@ setup: $(VENV_SENTINEL)
 status:
 	@echo "🔍 System Status:"
 	@test -d .venv && echo "  ✓ Environment ready" || echo "  ✗ Run 'make setup'"
+	@test -d $(DAGSTER_HOME) && echo "  ✓ Dagster Home exists" || echo "  ⚠ No Dagster Home"
 	@test -f $(DB_PATH) && echo "  ✓ Database exists" || echo "  ⚠ No data yet"
 
 orchestrate: setup
-	@echo "🐙 Dagster UI → http://localhost:3000"
+	@echo "🐙 Dagster UI → http://localhost:3000 (Home: $(DAGSTER_HOME))"
+	@mkdir -p $(DAGSTER_HOME)
 	@uv run dg dev
 
 pipeline: setup
 	@echo "⚡ Running pipeline..."
+	@mkdir -p $(DAGSTER_HOME)
 	@uv run dg launch --assets '*'
 
 dashboard:
@@ -60,12 +67,12 @@ start:
 # --- CLEANUP ---
 clean:
 	@echo "🧹 Cleaning temporary files..."
-	@rm -rf dbt_project/target/ dbt_project/logs/ .dagster/ .dg/ .tmp*
+	@rm -rf dbt_project/target/ dbt_project/logs/ .dg/ .tmp*
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 clean-all: clean
-	@echo "🗑️  Full reset: removing database and venv..."
+	@echo "🗑️  Full reset: removing database, venv, and Dagster history..."
 	@rm -f $(DB_PATH) $(DB_PATH).wal $(VENV_SENTINEL)
-	@rm -rf .venv/
+	@rm -rf .venv/ $(DAGSTER_HOME)
 
 .DEFAULT_GOAL := help
