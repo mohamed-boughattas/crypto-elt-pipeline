@@ -81,27 +81,41 @@ make start
 
 ```text
 crypto-elt-pipeline/
-├── src/crypto_elt_pipeline/      # Dagster orchestration
-│   ├── defs/
-│   │   ├── assets/
-│   │   │   ├── ingestion.py      # PyAirbyte extraction
-│   │   │   ├── dbt.py            # dbt integration
-│   │   │   └── external.py       # External assets
-│   │   └── resources.py          # DuckDB-Polars I/O Manager
-│   ├── definitions.py            # Dagster entry point
-│   └── constants.py              # Configuration
+├── src/crypto_elt_pipeline/      # Core Orchestration Logic
+│   ├── definitions.py            # Dagster entry point (SDA definitions)
+│   ├── constants.py              # Global paths & API configurations
+│   └── defs/                     # Modular Dagster components
+│       ├── assets/
+│       │   ├── ingestion.py      # PyAirbyte: Extraction logic (Bronze)
+│       │   ├── dbt.py            # Dagster-dbt: Integration logic
+│       │   └── external.py       # Source asset definitions
+│       └── resources.py          # DuckDB-Polars I/O Manager & dbt resources
 │
-├── dbt_project/                  # dbt transformations
-│   └── models/
-│       ├── staging/              # Silver layer
-│       └── marts/                # Gold layer (incremental)
+├── dbt_project/                  # Transformation Layer (Medallion)
+│   ├── models/
+│   │   ├── staging/              # Silver Layer: Normalization & cleaning
+│   │   └── marts/                # Gold Layer: Incremental OHLC & volatility
+│   ├── dbt_project.yml           # dbt config
+│   └── profiles.yml              # DuckDB connection profile
 │
-├── streamlit_dashboard/          # Visualization
-│   └── dashboard.py
+├── streamlit_dashboard/          # Presentation Layer
+│   └── dashboard.py              # Interactive Bitcoin analytics
 │
-├── data/                         # DuckDB database (gitignored)
-├── Makefile                      # Project automation
-└── docs/                         # Detailed documentation
+├── docs/                         # Professional Documentation Hub
+│   ├── index.md                  # Documentation entry point
+│   ├── architecture.md           # System design & data flow
+│   ├── data-modeling.md          # dbt logic & OHLC math
+│   └── setup-guide.md            # Environment & uv instructions
+│
+├── data/                         # Local Warehouse (Gitignored)
+│   └── crypto.duckdb             # DuckDB analytical database
+│
+├── .dagster_home/                # Persistence & Isolation (Gitignored)
+│   └── source-coingecko-coins/   # Isolated PyAirbyte workspace
+│
+├── Makefile                      # Project automation (make start, make clean)
+├── pyproject.toml                # uv dependency management
+└── README.md                     # High-level "Billboard" summary
 ```
 
 ---
@@ -217,8 +231,6 @@ Multiple validation layers ensure data reliability:
 3. **Type safety** with explicit casting (Silver)
 4. **Business logic validation** in Gold layer
 5. **Sample count tracking** to detect data gaps
-
-> **Quality framework:** [Data Quality Guide](docs/data-modeling.md#data-quality)
 
 ---
 

@@ -564,16 +564,6 @@ make clean-all
 
 ---
 
-## 🆘 Getting Help
-
-**Still having issues?**
-
-1. Check [Troubleshooting Guide](troubleshooting.md)
-2. Review [Architecture Documentation](system-design)
-3. Open [GitHub Issue](https://github.com/mohamed-boughattas/crypto-elt-pipeline/issues)
-
----
-
 ## 📖 Related Documentation
 
 - [Architecture](system-design) - System design and components

@@ -326,9 +326,8 @@ crypto.duckdb
 
 ## 📚 Related Documentation
 
-- [Data Modeling Details](data-modeling.md) - Deep dive into Medallion layers
+- [Data Modeling](data-modeling.md) - Deep dive into Medallion layers
 - [Setup Guide](setup-guide.md) - Installation and configuration
-- [Development Guide](development.md) - Adding features and contributing
 
 ---
 
