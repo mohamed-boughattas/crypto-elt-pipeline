@@ -15,7 +15,7 @@ models:
           expression: "open_price > 0"
 
     columns:
-      - name: date_day
+      - name: trade_date
         description: "The date of the candlestick (primary key)."
         tests:
           - unique

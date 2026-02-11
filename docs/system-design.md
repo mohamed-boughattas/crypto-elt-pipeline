@@ -140,7 +140,7 @@ where price > 0 and timestamp is not null
 
 ```sql
 select
-    date_trunc('day', timestamp) as date_day,
+    date_trunc('day', timestamp) as trade_date,
     arg_min(price, timestamp) as open_price,
     max(price) as high_price,
     min(price) as low_price,
@@ -149,7 +149,7 @@ select
     round(((max(price) - min(price)) / min(price)) * 100, 2) as volatility_pct
 from {{ ref('stg_bitcoin_prices') }}
 {% if is_incremental() %}
-    where date_trunc('day', timestamp) >= (select max(date_day) from {{ this }})
+    where date_trunc('day', timestamp) >= (select max(trade_date) from {{ this }})
 {% endif %}
 group by 1
 ```
@@ -201,7 +201,7 @@ conn = duckdb.connect('data/crypto.duckdb')
 df = conn.execute("SELECT * FROM mart.fct_daily_btc_candlesticks").pl()
 
 fig = go.Figure(data=[go.Candlestick(
-    x=df['date_day'],
+    x=df['trade_date'],
     open=df['open_price'],
     high=df['high_price'],
     low=df['low_price'],

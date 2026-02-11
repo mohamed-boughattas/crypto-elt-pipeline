@@ -188,13 +188,13 @@ dbt test --select stg_bitcoin_prices
 ```sql
 {{ config(
     materialized='incremental',
-    unique_key='date_day',
+    unique_key='trade_date',
     on_schema_change='fail'
 ) }}
 
 select
     -- Date dimension
-    date_trunc('day', timestamp) as date_day,
+    date_trunc('day', timestamp) as trade_date,
     
     -- OHLC metrics (candlestick chart data)
     arg_min(price, timestamp) as open_price,   -- First price of day
@@ -222,7 +222,7 @@ from {{ ref('stg_bitcoin_prices') }}
 {% if is_incremental() %}
     -- Incremental logic: only process new/updated days
     where date_trunc('day', timestamp) >= (
-        select max(date_day) from {{ this }}
+        select max(trade_date) from {{ this }}
     )
 {% endif %}
 
@@ -279,7 +279,7 @@ arg_max(price, timestamp)  -- Returns price at maximum timestamp
    ```sql
    -- Processes ALL historical data
    select ... from stg_bitcoin_prices
-   group by date_day
+   group by trade_date
    ```
 
 2. **Subsequent runs** (table exists):
@@ -287,14 +287,14 @@ arg_max(price, timestamp)  -- Returns price at maximum timestamp
    ```sql
    -- Only processes new days
    where date_trunc('day', timestamp) >= (
-       select max(date_day) from {{ this }}
+       select max(trade_date) from {{ this }}
    )
    ```
 
 3. **Smart refresh**: Always re-processes current day
 
    ```text
-   max(date_day) = 2026-02-10
+   max(trade_date) = 2026-02-10
    → Re-processes 2026-02-10 (captures intra-day updates)
    → Also processes 2026-02-11 if new data arrived
    ```
@@ -394,11 +394,11 @@ volatility_pct  -- Flag if > 50% (unusual)
 
 ```sql
 SELECT 
-    date_day,
+    trade_date,
     close_price,
     daily_volume
 FROM mart.fct_daily_btc_candlesticks
-ORDER BY date_day DESC
+ORDER BY trade_date DESC
 LIMIT 1;
 ```
 
@@ -406,21 +406,21 @@ LIMIT 1;
 
 ```sql
 SELECT 
-    date_day,
+    trade_date,
     close_price,
     AVG(close_price) OVER (
-        ORDER BY date_day
+        ORDER BY trade_date
         ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
     ) as ma_7_day
 FROM mart.fct_daily_btc_candlesticks
-ORDER BY date_day DESC;
+ORDER BY trade_date DESC;
 ```
 
 ### Find High Volatility Days
 
 ```sql
 SELECT 
-    date_day,
+    trade_date,
     open_price,
     close_price,
     volatility_pct
@@ -466,10 +466,10 @@ dbt run --full-refresh
 
 ```sql
 select
-    date_day,
+    trade_date,
     close_price,
     avg(close_price) over (
-        order by date_day
+        order by trade_date
         rows between 29 preceding and current row
     ) as ma_30_day
 from {{ ref('fct_daily_btc_candlesticks') }}

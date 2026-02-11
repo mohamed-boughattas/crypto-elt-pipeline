@@ -112,7 +112,7 @@ def get_market_data(days: int = DISPLAY_DAYS) -> pd.DataFrame:
     try:
         query = f"""
             SELECT 
-                date_day,
+                trade_date,
                 CAST(open_price AS FLOAT) as open_price,
                 CAST(high_price AS FLOAT) as high_price,
                 CAST(low_price AS FLOAT) as low_price,
@@ -120,8 +120,8 @@ def get_market_data(days: int = DISPLAY_DAYS) -> pd.DataFrame:
                 CAST(daily_volume AS FLOAT) as daily_volume,
                 CAST(volatility_pct AS FLOAT) as volatility_pct
             FROM mart.fct_daily_btc_candlesticks
-            WHERE date_day >= current_date - interval '{days} days' 
-            ORDER BY date_day ASC
+            WHERE trade_date >= current_date - interval '{days} days' 
+            ORDER BY trade_date ASC
         """
         df = conn.execute(query).df()
 
@@ -171,7 +171,7 @@ df["daily_change_pct"] = (df["close_price"] - df["open_price"]) / df["open_price
 # Metadata / Refreshed status
 num_days = len(df)
 st.markdown(
-    f"**Analysis Period:** {df['date_day'].min().strftime('%Y-%m-%d')} to {df['date_day'].max().strftime('%Y-%m-%d')} "
+    f"**Analysis Period:** {df['trade_date'].min().strftime('%Y-%m-%d')} to {df['trade_date'].max().strftime('%Y-%m-%d')} "
     f"(**{num_days} days**)"
 )
 st.caption(f"Last data sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -310,7 +310,7 @@ fig = go.Figure()
 # Candlestick Trace
 fig.add_trace(
     go.Candlestick(
-        x=df["date_day"],
+        x=df["trade_date"],
         open=df["open_price"],
         high=df["high_price"],
         low=df["low_price"],
@@ -324,7 +324,7 @@ fig.add_trace(
 if show_ma:
     fig.add_trace(
         go.Scatter(
-            x=df["date_day"],
+            x=df["trade_date"],
             y=df["MA"],
             mode="lines",
             name="Moving Average",
@@ -358,7 +358,7 @@ col_l, col_r = st.columns(2)
 
 with col_l:
     st.subheader("Volatility Trend")
-    fig_vol = px.line(df, x="date_day", y="volatility_pct")
+    fig_vol = px.line(df, x="trade_date", y="volatility_pct")
     fig_vol.add_hline(
         y=avg_vol,
         line_dash="dash",
@@ -371,7 +371,7 @@ with col_l:
 
 with col_r:
     st.subheader("Daily Volume")
-    fig_volume = px.bar(df, x="date_day", y="daily_volume")
+    fig_volume = px.bar(df, x="trade_date", y="daily_volume")
     fig_volume.update_traces(marker_color="#1f77b4")
     fig_volume.update_layout(height=350, template="plotly_white", showlegend=False)
     st.plotly_chart(fig_volume, use_container_width=True)
@@ -401,7 +401,7 @@ st.header("📋 Data Explorer")
 with st.expander("📊 View Detailed Time-Series", expanded=False):
     table_df = df[
         [
-            "date_day",
+            "trade_date",
             "open_price",
             "high_price",
             "low_price",
@@ -412,9 +412,9 @@ with st.expander("📊 View Detailed Time-Series", expanded=False):
             "Direction",
         ]
     ].copy()
-    table_df = table_df.sort_values("date_day", ascending=False).rename(
+    table_df = table_df.sort_values("trade_date", ascending=False).rename(
         columns={
-            "date_day": "Date",
+            "trade_date": "Date",
             "open_price": "Open",
             "high_price": "High",
             "low_price": "Low",

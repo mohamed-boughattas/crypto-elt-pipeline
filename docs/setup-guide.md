@@ -293,7 +293,7 @@ SELECT COUNT(*) FROM mart.fct_daily_btc_candlesticks;
 
 -- View latest data
 SELECT * FROM mart.fct_daily_btc_candlesticks 
-ORDER BY date_day DESC 
+ORDER BY trade_date DESC 
 LIMIT 5;
 
 -- Exit

@@ -1,46 +1,53 @@
 {{
   config(
     materialized='incremental',
-    unique_key='date_day'
+    unique_key='trade_date',
+    on_schema_change='sync_all_columns'
   )
 }}
 
-with daily_prices as (
+with source_data as (
     select
-        timestamp,
+        recorded_at,
         price,
         volume,
-        -- Normalize timestamps to day for granular time-series partitioning
-        date_trunc('day', timestamp)::date as date_day
+        date_trunc('day', recorded_at)::date as trade_date
     from {{ ref('stg_bitcoin_prices') }}
+),
 
+{% if is_incremental() %}
+-- Calculate the watermark in a separate CTE
+    latest_watermark as (
+        select max(trade_date) as last_date from {{ this }}
+    ),
+{% endif %}
+
+filtered_prices as (
+    select src.* from source_data as src
     {% if is_incremental() %}
-        -- Watermark Strategy: Re-processes the latest date to ensure intra-day 
-        -- records are captured until the day is finalized.
-        where
-            date_trunc('day', timestamp)
-            >= (select max(date_day) from {{ this }})
+        cross join latest_watermark
+        where src.trade_date >= latest_watermark.last_date
     {% endif %}
 ),
 
 final as (
     select
-        date_day,
+        trade_date,
         -- Financial OHLC aggregation using DuckDB arg_min/arg_max
-        arg_min(price, timestamp) as open_price,  -- Price at market open
-        max(price) as high_price,                 -- Period high
-        min(price) as low_price,                  -- Period low
-        arg_max(price, timestamp) as close_price, -- Price at market close
+        arg_min(price, recorded_at) as open_price,
+        max(price) as high_price,
+        min(price) as low_price,
+        arg_max(price, recorded_at) as close_price,
 
         -- Volume and Data Quality signals
         sum(volume) as daily_volume,
         count(*) as samples_count,
 
         -- Intraday Volatility: (High - Low) / Low
-        round(((max(price) - min(price)) / min(price)) * 100, 2)
+        round(((max(price) - min(price)) / nullif(min(price), 0)) * 100, 2)
             as volatility_pct
 
-    from daily_prices
+    from filtered_prices
     group by 1
 )
 
