@@ -36,7 +36,7 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
 translator_instance = CustomDagsterDbtTranslator(
     settings=DagsterDbtTranslatorSettings(
         enable_asset_checks=True,
-        enable_source_tests_as_checks=True,
+        enable_source_tests_as_checks=False,  # Disable source tests to avoid partition issues
     )
 )
 
