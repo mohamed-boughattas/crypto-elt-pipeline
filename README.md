@@ -64,15 +64,23 @@ graph LR
         D
     end
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#ff9,stroke:#333,stroke-width:2px
-    style C fill:#9f9,stroke:#333,stroke-width:2px
-    style D fill:#99f,stroke:#333,stroke-width:2px
-    style E fill:#f99,stroke:#333,stroke-width:2px
-    style F fill:#fff,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
-    style Y fill:#ddd,stroke:#333,stroke-width:2px
-    style DuckDB fill:#eef,stroke:#33f,stroke-width:3px,stroke-dasharray: 5 5
-    style Config fill:#f5f5f5,stroke:#666,stroke-width:1px
+    classDef api fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef bronze fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef silver fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef gold fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
+    classDef dashboard fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef orchestrator fill:#ffffff,stroke:#424242,stroke-width:2px,stroke-dasharray: 5 5
+    classDef config fill:#f5f5f5,stroke:#757575,stroke-width:1px
+    classDef database fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,stroke-dasharray: 5 5
+
+    class A api
+    class B bronze
+    class C silver
+    class D gold
+    class E dashboard
+    class F orchestrator
+    class Y config
+    class DuckDB database
 ```
 
 **Data Flow:**
