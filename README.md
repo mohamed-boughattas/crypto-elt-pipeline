@@ -245,7 +245,7 @@ This pipeline demonstrates modern data engineering patterns:
 ```text
 1. Extract   → PyAirbyte fetches crypto data from CoinGecko API (incremental)
 2. Load      → Raw data lands in raw.crypto_prices (Bronze) via Polars
-3. Transform → dbt processes through staging (Silver) to marts (Gold)
+3. Transform → dbt processes through staging (Silver) to mart (Gold)
 4. Visualize → Streamlit queries Gold layer for interactive analytics
 ```
 
