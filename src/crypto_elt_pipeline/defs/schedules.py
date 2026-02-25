@@ -8,10 +8,12 @@ This module defines:
 from collections.abc import Iterator
 
 import dagster as dg
+import duckdb
 import pendulum
 from pendulum import Duration
 
 from crypto_elt_pipeline.config import get_config
+from crypto_elt_pipeline.constants import DUCKDB_PATH
 
 # ------------------------------------------------------------------
 # Daily Refresh Schedule
@@ -77,10 +79,6 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
         SensorResult with run requests for stale partitions.
     """
     config = get_config()
-    cursor = context.cursor or ""
-
-    # Parse cursor to track last check time
-    last_check = pendulum.parse(cursor) if cursor else pendulum.now("UTC").subtract(hours=1)
 
     # Freshness threshold: 24 hours
     freshness_threshold = Duration(hours=24)
@@ -88,15 +86,56 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
 
     run_requests = []
 
-    # Check each coin's freshness
-    # NOTE: This simplified implementation triggers based on time elapsed since last check.
-    # A production implementation would query DuckDB to check actual data freshness:
-    #   SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?
-    # For a portfolio project, this time-based approach is sufficient and avoids
-    # database coupling in the sensor layer.
+    # Check each coin's freshness by querying DuckDB for actual data freshness
     for coin_id in config.coin_ids:
-        # Create a run request if we haven't checked recently
-        if (now - last_check) >= freshness_threshold:
+        try:
+            # Query DuckDB to get the latest recorded_at timestamp for this coin
+            with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
+                result = conn.execute(
+                    "SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?",
+                    [coin_id],
+                ).fetchone()
+
+                if result and result[0]:
+                    # Convert to timezone-aware UTC datetime
+                    latest_timestamp = result[0]
+                    if latest_timestamp.tzinfo is None:
+                        latest_timestamp = pendulum.instance(latest_timestamp, tz="UTC")
+                    else:
+                        latest_timestamp = pendulum.instance(latest_timestamp)
+
+                    # Check if data is stale (older than 24 hours)
+                    if (now - latest_timestamp) > freshness_threshold:
+                        run_requests.append(
+                            dg.RunRequest(
+                                run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
+                                partition_key=coin_id,
+                                tags={
+                                    "trigger": "freshness_sensor",
+                                    "coin": coin_id,
+                                    "check_time": now.isoformat(),
+                                    "data_age_hours": int(
+                                        (now - latest_timestamp).total_seconds() / 3600
+                                    ),
+                                },
+                            )
+                        )
+                else:
+                    # No data exists for this coin, trigger a run
+                    run_requests.append(
+                        dg.RunRequest(
+                            run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
+                            partition_key=coin_id,
+                            tags={
+                                "trigger": "freshness_sensor",
+                                "coin": coin_id,
+                                "check_time": now.isoformat(),
+                                "data_age_hours": "no_data",
+                            },
+                        )
+                    )
+        except (duckdb.Error, FileNotFoundError):
+            # Database doesn't exist yet, trigger a run for all coins
             run_requests.append(
                 dg.RunRequest(
                     run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
@@ -105,6 +144,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
                         "trigger": "freshness_sensor",
                         "coin": coin_id,
                         "check_time": now.isoformat(),
+                        "data_age_hours": "database_missing",
                     },
                 )
             )
