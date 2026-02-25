@@ -1,6 +1,6 @@
 # 🚀 Setup Guide
 
-Complete installation and configuration guide for the Bitcoin Analysis Pipeline.
+Complete installation and configuration guide for the Crypto ELT Pipeline.
 
 ---
 
@@ -8,17 +8,12 @@ Complete installation and configuration guide for the Bitcoin Analysis Pipeline.
 
 ### Required Software
 
-| Software | Version | Purpose |
-| ---------- | --------- | --------- |
-| **Python** | 3.10+ | Runtime environment |
-| **uv** | Latest | Package manager |
-| **Git** | Any | Version control |
-
-### System Requirements
-
-- **OS**: macOS, Linux, or Windows (WSL recommended)
-- **RAM**: 4GB minimum (8GB recommended)
-- **Disk**: 2GB free space
+| Software   | Version | Purpose                             |
+| ---------- | ------- | ----------------------------------- |
+| **Python** | 3.10+   | Runtime environment                 |
+| **uv**     | Any     | Package manager                     |
+| **Docker** | Any     | Required for PyAirbyte connectors   |
+| **Git**    | Any     | Version control                     |
 
 ---
 
@@ -84,36 +79,26 @@ make setup
 2. Installs Python packages from `pyproject.toml`
 3. Creates `data/` directory for DuckDB
 4. Creates `.dagster_home/` for Dagster metadata
-5. Creates `.airbyte_cache/` for PyAirbyte connectors
 
 **Verify installation:**
 
 ```bash
-make status
-```
-
-**Expected output:**
-
-```text
-✓ uv installed
-✓ Virtual environment ready
-✓ Dagster home configured
-✓ Port 3000 available (Dagster)
-✓ Port 8501 available (Streamlit)
+# Check that virtual environment was created
+ls -la .venv
 ```
 
 ---
 
-### Step 4: Install dbt Packages
+### Step 4: Start Docker
+
+PyAirbyte connectors run in Docker containers. Ensure Docker is running:
 
 ```bash
-make install
+# Check Docker status
+docker info
+
+# If not running, start Docker Desktop or Docker daemon
 ```
-
-**What this does:**
-
-- Installs dbt dependencies
-- Downloads dbt packages to `dbt_project/dbt_packages/`
 
 ---
 
@@ -149,10 +134,10 @@ make pipeline
 
 **What happens:**
 
-1. PyAirbyte fetches Bitcoin data from CoinGecko API
-2. Raw data loads into DuckDB Bronze layer (`raw.bitcoin_prices`)
-3. dbt runs Silver transformations (`staging.stg_bitcoin_prices`)
-4. dbt runs Gold transformations (`mart.fct_daily_btc_candlesticks`)
+1. PyAirbyte fetches cryptocurrency data from CoinGecko API (10 coins: Bitcoin, Ethereum, XRP, Solana, Cardano, Avalanche, Polkadot, BNB, Chainlink, Dogecoin)
+2. Raw data loads into DuckDB Bronze layer (`raw.crypto_prices`)
+3. dbt runs Silver transformations (`staging.stg_crypto_prices`)
+4. dbt runs Gold transformations (`mart.fct_crypto_candlesticks`)
 
 **Expected output:**
 
@@ -160,8 +145,8 @@ make pipeline
 ⚡ Running pipeline...
 📦 Installing dependencies...
 🦎 Initializing CoinGecko source connector
-📊 Reading Bitcoin market data
-✅ Successfully ingested 1008 records to Bronze layer
+📊 Reading cryptocurrency market data
+✅ Successfully ingested records to Bronze layer
 ✅ Processing nested lists...
 ✅ Final output validation passed
 ✅ Running dbt transformations...
@@ -183,7 +168,7 @@ make pipeline
 ### 2. Launch Dagster UI (Optional)
 
 ```bash
-make orchestrate
+uv run dg dev
 ```
 
 **Access:**
@@ -197,6 +182,7 @@ make orchestrate
 - 🔍 Data lineage tracking
 - 📝 Run logs and metadata
 - 🎯 Manual asset materialization
+- ⏰ Automated schedules (daily refresh at 6 AM UTC)
 
 ---
 
@@ -255,13 +241,13 @@ telemetry:
 **File**: `dbt_project/profiles.yml`
 
 ```yaml
-crypto_elt:
+crypto_elt_pipeline:
+  target: dev
   outputs:
     dev:
       type: duckdb
       path: ../data/crypto.duckdb
-      schema: main
-  target: dev
+      threads: 4
 ```
 
 **Already configured** - uses relative path to DuckDB file.
@@ -282,17 +268,17 @@ duckdb crypto.duckdb
 -- List all schemas
 SHOW SCHEMAS;
 
--- Check Bronze layer
-SELECT COUNT(*) FROM raw.bitcoin_prices;
+-- Check Bronze layer (all coins)
+SELECT coin, COUNT(*) FROM raw.crypto_prices GROUP BY coin;
 
 -- Check Silver layer
-SELECT COUNT(*) FROM staging.stg_bitcoin_prices;
+SELECT COUNT(*) FROM staging.stg_crypto_prices;
 
 -- Check Gold layer
-SELECT COUNT(*) FROM mart.fct_daily_btc_candlesticks;
+SELECT coin, COUNT(*) FROM mart.fct_crypto_candlesticks GROUP BY coin;
 
 -- View latest data
-SELECT * FROM mart.fct_daily_btc_candlesticks 
+SELECT * FROM mart.fct_crypto_candlesticks 
 ORDER BY trade_date DESC 
 LIMIT 5;
 
@@ -312,9 +298,10 @@ uv run dbt test
 **Expected output:**
 
 ```text
-Running with dbt=1.7.0
-Found 2 models, 5 tests, 0 snapshots...
+Running with dbt=1.11.3
+Found 2 models, 46 data tests, 1 source, 871 macros
 Completed successfully
+Done. PASS=46 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=46
 ```
 
 ---
@@ -322,20 +309,91 @@ Completed successfully
 ### 3. Check Project Status
 
 ```bash
-make status
+# Check database exists
+ls -lh data/crypto.duckdb
+
+# Verify Dagster home is configured
+ls -la .dagster_home
 ```
 
-**Healthy output:**
+---
+
+## 🧪 Running Tests
+
+The project includes a test suite for validating core functionality.
+
+### Run All Tests
+
+```bash
+make test
+```
+
+### Run with Coverage
+
+```bash
+make test-cov
+```
+
+### Expected Output
 
 ```text
-✓ uv installed
-✓ Virtual environment ready
-✓ Dagster home configured
-✓ Database exists (2.5MB)
-✓ dbt packages installed
-✓ Port 3000 available
-✓ Port 8501 available
+============================= test session starts ==============================
+collected 67 items
+
+tests/test_constants.py::TestProjectPaths::test_project_root_exists PASSED
+tests/test_schemas.py::TestProcessedPriceSchema::test_negative_price_fails PASSED
+...
+
+======================= 67 passed in 12.34s =======================
 ```
+
+> **Detailed testing guide:** See [Testing Guide](testing.md)
+
+## 🔧 Code Quality Tools
+
+### SQL Formatting with SQLFluff
+
+**Purpose**: Consistent SQL formatting and linting for dbt models
+
+**Configuration**: `dbt_project/.sqlfluff`
+
+```ini
+[sqlfluff]
+dialect = duckdb
+max_line_length = 120
+ignore = templating, parsing
+
+[sqlfluff:rules]
+comma_style = trailing
+single_table_references = qualified
+```
+
+**Usage:**
+
+```bash
+# Check SQL formatting
+cd dbt_project
+uv run sqlfluff lint models/
+
+# Auto-fix formatting issues
+uv run sqlfluff fix models/
+
+# Check specific file
+uv run sqlfluff lint models/marts/fct_crypto_candlesticks.sql
+```
+
+**Current Status:**
+
+- ✅ 0 SQLFluff warnings
+- ✅ DuckDB-compatible linting rules
+- ✅ 120 character line length
+- ✅ Trailing comma style
+
+**Integration:**
+
+- Automated formatting in CI/CD pipeline
+- DuckDB-specific dialect configuration
+- Templating and parsing warnings ignored for dbt compatibility
 
 ---
 
@@ -347,9 +405,6 @@ make clean
 
 # Full cleanup (removes database too)
 make clean-all
-
-# Remove only PyAirbyte cache
-rm -rf .airbyte_cache/
 
 # Remove only Dagster metadata
 rm -rf .dagster_home/
@@ -420,8 +475,12 @@ sudo apt-get install build-essential
 
 ```bash
 uv sync
-mkdir -p data .dagster_home .airbyte_cache
-uv run dg launch --assets '*'
+mkdir -p data .dagster_home
+# Run pipeline for each partition (10 cryptocurrencies)
+for coin in bitcoin ethereum ripple solana cardano avalanche-2 polkadot binancecoin chainlink dogecoin; do
+    uv run dg launch --assets 'raw/crypto_prices' --partition "$coin"
+done
+uv run dbt run --project-dir dbt_project
 ```
 
 ---
@@ -440,14 +499,7 @@ uv run dg launch --assets '*'
 curl -I https://api.coingecko.com
 ```
 
-**Solution 2**: Clear PyAirbyte cache
-
-```bash
-rm -rf .airbyte_cache/
-make pipeline
-```
-
-**Solution 3**: Check API limits
+**Solution 2**: Check API limits
 
 - CoinGecko free tier: 10-50 calls/minute
 - Wait a few minutes and retry
@@ -523,17 +575,14 @@ After successful setup:
 1. **Explore the data**: Open Dagster UI and click through asset lineage
 2. **View transformations**: Check `dbt_project/models/` SQL files
 3. **Customize dashboard**: Edit `streamlit_dashboard/dashboard.py`
-4. **Read architecture**: See [Architecture Documentation](system-design)
-5. **Add features**: See [Development Guide](development.md)
+4. **Read architecture**: See [Architecture Documentation](system-design.md)
+5. **Understand data models**: See [Data Modeling Guide](data-modeling.md)
 
 ---
 
 ## 📚 Useful Commands
 
 ```bash
-# Check system status
-make status
-
 # Run full pipeline
 make start
 
@@ -541,36 +590,32 @@ make start
 make pipeline
 
 # Open Dagster UI
-make orchestrate
+make dev
 
 # Open dashboard
 make dashboard
 
-# View pipeline logs
-make logs
-
 # Run dbt tests
 cd dbt_project && uv run dbt test
 
-# Generate dbt docs
+# Generate dbt Docs
 cd dbt_project && uv run dbt docs generate && uv run dbt docs serve
 
 # Clean temporary files
 make clean
 
 # Full cleanup
-make clean-all
+make deep-clean
 ```
 
 ---
 
 ## 📖 Related Documentation
 
-- [Architecture](system-design) - System design and components
+- [Architecture](system-design.md) - System design and components
 - [Data Modeling](data-modeling.md) - Medallion architecture details
-- [Development Guide](development.md) - Adding features
-- [Troubleshooting](troubleshooting.md) - Common issues
+- [Testing Guide](testing.md) - Testing strategy and coverage
 
 ---
 
-**[← Back to Documentation Index](README.md)**
+**[← Back to Documentation Index](index.md)**
