@@ -40,7 +40,11 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-![Architecture Diagram](docs/diagrams/architecture.svg)
+<div align="center">
+  <a href="docs/diagrams/architecture.svg">
+    <img src="docs/diagrams/architecture.svg" alt="Architecture Diagram" width="800">
+  </a>
+</div>
 
 **Data Flow:**
 
@@ -59,6 +63,7 @@ Automated pipeline that:
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) installed
 - Docker (required for PyAirbyte connectors)
+- (Optional) CoinGecko Pro API key for higher rate limits
 
 ### Run the Pipeline
 
@@ -155,6 +160,16 @@ make clean          # Clean generated files (preserves history)
 ```bash
 make coin=bitcoin pipeline-coin  # Run pipeline for specific coin
 make deep-clean                  # Full clean including run history
+```
+
+### Development Setup
+
+```bash
+# Install pre-commit hooks for code quality
+uv run pre-commit install
+
+# Run pre-commit on all files
+uv run pre-commit run --all-files
 ```
 
 > **All commands:** run `make help`
