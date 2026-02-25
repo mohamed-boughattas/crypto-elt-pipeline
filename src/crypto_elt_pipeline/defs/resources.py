@@ -22,7 +22,7 @@ dbt_resource = DbtCliResource(
 
 
 @dg.definitions
-def resources():
+def resources() -> dg.Definitions:
     return dg.Definitions(
         resources={
             "io_manager": database_io_manager,

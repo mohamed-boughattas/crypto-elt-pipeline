@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from dagster import AssetExecutionContext
 from dagster_dbt import (
@@ -19,15 +20,31 @@ dbt_project.prepare_if_dev()
 # 2. Custom Metadata Translator
 # Organizes the Dagster UI by grouping assets based on their dbt FQN.
 class CustomDagsterDbtTranslator(DagsterDbtTranslator):
-    def get_group_name(self, dbt_resource_props):
+    def get_group_name(self, dbt_resource_props: dict[str, Any]) -> str | None:
+        """Get the group name for a dbt resource based on its folder structure.
+
+        Args:
+            dbt_resource_props: Dictionary containing dbt resource properties including FQN
+
+        Returns:
+            Group name for UI organization, or None to use default grouping
+        """
         # fqn[1] is the top-level folder under 'models/'
-        folder = dbt_resource_props.get("fqn", [])[1]
+        folder = dbt_resource_props.get("fqn", [])[1] if dbt_resource_props.get("fqn") else None
 
         group_mapping = {"raw": "Bronze", "staging": "Silver", "marts": "Gold"}
-        return group_mapping.get(folder, "Default")
+        return group_mapping.get(folder, "Default") if folder else None
 
     # Maps dbt tests to native Dagster Asset Checks.
-    def get_asset_check_key(self, dbt_resource_props):
+    def get_asset_check_key(self, dbt_resource_props: dict[str, Any]) -> Any:
+        """Get the asset check key for a dbt resource.
+
+        Args:
+            dbt_resource_props: Dictionary containing dbt resource properties
+
+        Returns:
+            Asset check key for the dbt resource
+        """
         return super().get_asset_check_key(dbt_resource_props)
 
 
@@ -48,6 +65,6 @@ translator_instance = CustomDagsterDbtTranslator(
     dagster_dbt_translator=translator_instance,
     select="fqn:*",
 )
-def crypto_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource):
+def crypto_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Any:
     # 'build' runs models and checks atomically; results are streamed to the UI.
     yield from dbt.cli(["build", "--select", "fqn:*"], context=context).stream()
