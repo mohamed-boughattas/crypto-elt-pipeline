@@ -213,10 +213,6 @@ data/*.tmp
 data/*.parquet
 data/*.csv
 
-# Pyairbyte
-.airbyte_cache/
-source-coingecko-coins/
-
 # Dagster
 .dg/
 .dagster/
@@ -231,6 +227,9 @@ source-coingecko-coins/
 dbt_project/target/
 dbt_project/dbt_packages/
 dbt_project/logs/
+
+# PyAirbyte cache directories
+source-*/
 
 # OS Junk
 .DS_Store

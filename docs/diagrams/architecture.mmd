@@ -1,0 +1,32 @@
+graph LR
+    subgraph Config["⚙️ Configuration"]
+        Y[coins.yaml<br/>10 cryptocurrencies]
+    end
+
+    A[CoinGecko API] -->|PyAirbyte<br/>incremental| B[Bronze Layer<br/>raw.crypto_prices]
+    B -->|dbt| C[Silver Layer<br/>staging.stg_crypto_prices]
+    C -->|dbt incremental| D[Gold Layer<br/>mart.fct_crypto_candlesticks]
+    D --> E[Streamlit<br/>Dashboard]
+
+    F[Dagster<br/>Orchestrator] -.->|manages| B
+    F -.->|manages| C
+    F -.->|manages| D
+    F -.->|schedule 6AM UTC| A
+
+    Y -.->|defines coins| B
+
+    subgraph DuckDB["DuckDB Database"]
+        B
+        C
+        D
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#ff9,stroke:#333,stroke-width:2px
+    style C fill:#9f9,stroke:#333,stroke-width:2px
+    style D fill:#99f,stroke:#333,stroke-width:2px
+    style E fill:#f99,stroke:#333,stroke-width:2px
+    style F fill:#fff,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style Y fill:#ddd,stroke:#333,stroke-width:2px
+    style DuckDB fill:#eef,stroke:#33f,stroke-width:3px,stroke-dasharray: 5 5
+    style Config fill:#f5f5f5,stroke:#666,stroke-width:1px

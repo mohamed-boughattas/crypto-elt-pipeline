@@ -1,6 +1,6 @@
 # 📚 Documentation
 
-Technical documentation for the Bitcoin Analysis Pipeline.
+Technical documentation for the Crypto ELT Pipeline.
 
 ---
 
@@ -48,13 +48,27 @@ Detailed installation and configuration steps.
 
 ---
 
+### [🧪 Testing Guide](testing.md)
+
+Testing strategy and writing tests.
+
+**Topics covered:**
+
+- Testing philosophy
+- Running tests
+- Writing new tests
+- Test coverage
+
+---
+
 ## 🎯 Quick Navigation
 
-| What you want to do | Where to look |
-| --------------------- | --------------- |
-| Understand the system | [Architecture](system-design.md) |
-| Install and run | [Setup Guide](setup-guide.md) |
-| Learn data transformations | [Data Modeling](data-modeling.md) |
+| What you want to do        | Where to look                      |
+| -------------------------- | ---------------------------------- |
+| Understand the system      | [Architecture](system-design.md)   |
+| Install and run            | [Setup Guide](setup-guide.md)      |
+| Learn data transformations | [Data Modeling](data-modeling.md)  |
+| Run or write tests         | [Testing Guide](testing.md)        |
 
 ---
 
