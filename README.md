@@ -40,11 +40,7 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-<div align="center">
-  <a href="docs/diagrams/architecture.svg">
-    <img src="docs/diagrams/architecture.svg" alt="Architecture Diagram" width="800">
-  </a>
-</div>
+![Architecture Diagram](docs/diagrams/architecture.png)
 
 **Data Flow:**
 
