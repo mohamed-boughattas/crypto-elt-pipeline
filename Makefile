@@ -4,8 +4,8 @@
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export DAGSTER_HOME := $(PROJECT_ROOT)/.dagster_home
 DB_PATH = data/crypto.duckdb
-# COINS must match enabled coins in config/coins.yaml
-COINS = bitcoin ethereum ripple solana cardano avalanche-2 polkadot binancecoin chainlink dogecoin
+# COINS dynamically read from config/coins.yaml (enabled coins only)
+COINS := $(shell python -c "import yaml; print(' '.join([c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]))")
 
 # Default target
 help:
@@ -13,7 +13,7 @@ help:
 	@echo ""
 	@echo "  make start     → Setup + Pipeline + Dashboard"
 	@echo "  make setup     → Install dependencies and create directories"
-	@echo "  make pipeline  → Run data pipeline (all 10 coins)"
+	@echo "  make pipeline  → Run data pipeline (all enabled coins)"
 	@echo "  make coin=bitcoin pipeline-coin → Run pipeline for specific coin"
 	@echo "  make dev       → Launch Dagster development server"
 	@echo "  make dashboard → Launch Streamlit Dashboard"
@@ -24,6 +24,9 @@ help:
 	@echo "  make lint-dbt-fix → Fix dbt linting issues"
 	@echo "  make clean     → Clean database and dbt target (preserves history)"
 	@echo "  make deep-clean → Full clean including .venv and .dagster_home"
+	@echo ""
+	@echo "  make list-coins    → Show all enabled coins from config"
+	@echo "  make validate-coins → Validate coin list against config"
 
 # Setup environment
 setup:
@@ -31,10 +34,27 @@ setup:
 	@mkdir -p data $(DAGSTER_HOME)
 	@touch $(DAGSTER_HOME)/dagster.yaml
 
+# Validate coins against config before pipeline execution
+validate-coins:
+	@echo "🔍 Validating coin list against config/coins.yaml..."
+	@for coin in $(COINS); do \
+		if ! python -c "import yaml; coins=[c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]; exit(0 if '$$coin' in coins else 1)"; then \
+			echo "❌ Error: Coin '$$coin' not found in config/coins.yaml or not enabled"; \
+			echo "💡 Available coins: $(COINS)"; \
+			exit 1; \
+		fi; \
+	done
+	@echo "✅ All coins validated successfully!"
+
+# List all enabled coins from config
+list-coins:
+	@echo "Available coins (from config/coins.yaml):"
+	@python -c "import yaml; [print(f'  - {c[\"id\"]} ({c[\"name\"]})') for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]"
+
 # Full pipeline: Bronze → Silver → Gold (all 10 coins)
-pipeline: setup
+pipeline: setup validate-coins
 	@docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
-	@echo "⚡ Running pipeline (all 10 coins)..."
+	@echo "⚡ Running pipeline (all enabled coins)..."
 	@echo ""
 	@echo "📦 Bronze Layer: Ingesting raw data..."
 	@for coin in $(COINS); do \
