@@ -1,6 +1,6 @@
 # Crypto ELT Pipeline
 
-> **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
+> **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Features incremental extraction (~97% fewer API calls), Medallion architecture, and full data lineage. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml)
@@ -40,48 +40,7 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-```mermaid
-graph LR
-    subgraph Config["⚙️ Configuration"]
-        Y[coins.yaml<br/>10 cryptocurrencies]
-    end
-
-    A[CoinGecko API] -->|PyAirbyte<br/>incremental| B[Bronze Layer<br/>raw.crypto_prices]
-    B -->|dbt incremental| C[Silver Layer<br/>staging.stg_crypto_prices]
-    C -->|dbt table| D[Gold Layer<br/>mart.fct_crypto_candlesticks]
-    D --> E[Streamlit<br/>Dashboard]
-
-    F[Dagster<br/>Orchestrator] -.->|manages| B
-    F -.->|manages| C
-    F -.->|manages| D
-    F -.->|schedule 6AM UTC| A
-
-    Y -.->|defines coins| B
-
-    subgraph DuckDB["DuckDB Database"]
-        B
-        C
-        D
-    end
-
-    classDef api fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef bronze fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef silver fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef gold fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
-    classDef dashboard fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef orchestrator fill:#ffffff,stroke:#424242,stroke-width:2px,stroke-dasharray: 5 5
-    classDef config fill:#f5f5f5,stroke:#757575,stroke-width:1px
-    classDef database fill:#e3f2fd,stroke:#1976d2,stroke-width:3px,stroke-dasharray: 5 5
-
-    class A api
-    class B bronze
-    class C silver
-    class D gold
-    class E dashboard
-    class F orchestrator
-    class Y config
-    class DuckDB database
-```
+![Architecture Diagram](docs/diagrams/architecture.svg)
 
 **Data Flow:**
 
