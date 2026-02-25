@@ -1,0 +1,95 @@
+# Cryptocurrency Configuration
+# Single source of truth for supported cryptocurrencies
+# Used by: Dagster partitions, dbt tests, documentation
+#
+# Top 10 cryptocurrencies by market cap (approximate as of 2024)
+# Add enabled: false to disable a coin without removing it
+
+coins:
+  # ========== Layer 1 Blockchains ==========
+  - id: bitcoin
+    name: Bitcoin
+    symbol: BTC
+    color: "#F7931A"
+    category: layer1
+    enabled: true
+
+  - id: ethereum
+    name: Ethereum
+    symbol: ETH
+    color: "#627EEA"
+    category: layer1
+    enabled: true
+
+  - id: ripple
+    name: XRP
+    symbol: XRP
+    color: "#23292F"
+    category: layer1
+    enabled: true
+
+  - id: solana
+    name: Solana
+    symbol: SOL
+    color: "#9945FF"
+    category: layer1
+    enabled: true
+
+  - id: cardano
+    name: Cardano
+    symbol: ADA
+    color: "#0033AD"
+    category: layer1
+    enabled: true
+
+  - id: avalanche-2
+    name: Avalanche
+    symbol: AVAX
+    color: "#E84142"
+    category: layer1
+    enabled: true
+
+  - id: polkadot
+    name: Polkadot
+    symbol: DOT
+    color: "#E6007A"
+    category: layer1
+    enabled: true
+
+  # ========== Exchange Tokens ==========
+  - id: binancecoin
+    name: BNB
+    symbol: BNB
+    color: "#F3BA2F"
+    category: exchange
+    enabled: true
+
+  # ========== DeFi Tokens ==========
+  - id: chainlink
+    name: Chainlink
+    symbol: LINK
+    color: "#375BD2"
+    category: defi
+    enabled: true
+
+  # ========== Meme Coins ==========
+  - id: dogecoin
+    name: Dogecoin
+    symbol: DOGE
+    color: "#C2A633"
+    category: meme
+    enabled: true
+
+# API Configuration
+api:
+  source: coingecko
+  connector: source-coingecko-coins
+  base_url: https://api.coingecko.com/api/v3
+
+# Default ingestion settings
+ingestion:
+  vs_currency: usd
+  days_to_fetch: 30
+  retry_max_attempts: 3
+  retry_base_delay: 10  # seconds
+  retry_max_delay: 60   # seconds
