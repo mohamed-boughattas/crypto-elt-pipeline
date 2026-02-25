@@ -10,6 +10,8 @@ Architecture:
     CoinGecko API → PyAirbyte → raw_crypto_prices (Bronze) → dbt staging (Silver)
 """
 
+import os
+import random
 import time
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
@@ -23,6 +25,9 @@ import polars as pl
 
 from crypto_elt_pipeline.config import get_config
 from crypto_elt_pipeline.constants import DUCKDB_PATH
+
+# Optional CoinGecko API key for Pro API access (higher rate limits)
+COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY")
 
 # ------------------------------------------------------------------
 # Data Contracts (Pandera) - Enhanced with Business Logic
@@ -313,27 +318,36 @@ def fetch_coingecko_data(
     context.log.info(f"Fetching {coin_id} data (Last {days_str} complete days)...")
     context.log.debug(f"Date range: {start_date} to {end_date} (excluding today)")
 
+    # Log API key status
+    if COINGECKO_API_KEY:
+        context.log.debug("Using CoinGecko Pro API key for higher rate limits")
+
     def _fetch_with_retry() -> pl.DataFrame:
-        """Fetch data with exponential backoff for rate limits."""
-        max_retries = 3
-        base_delay = 60  # Start with 1 minute delay for rate limits
+        """Fetch data with exponential backoff and jitter for rate limits."""
+        # Use config values for retry settings
+        max_retries = config.ingestion.retry_max_attempts
+        base_delay = config.ingestion.retry_base_delay
+        max_delay = config.ingestion.retry_max_delay
 
         for attempt in range(max_retries + 1):
             start_time = time.time()
 
             try:
+                # Build source config with optional API key
+                source_config = {
+                    "coin_id": coin_id,
+                    "vs_currency": vs_currency,
+                    "days": days_str,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                }
+
                 # Redirect stdout/stderr to suppress low-level connector noise
                 with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
                     source = ab.get_source(
                         config.api.connector,
                         docker_image="airbyte/source-coingecko-coins:0.2.26",
-                        config={
-                            "coin_id": coin_id,
-                            "vs_currency": vs_currency,
-                            "days": days_str,
-                            "start_date": start_date,
-                            "end_date": end_date,
-                        },
+                        config=source_config,
                         install_if_missing=True,
                     )
                     source.check()
@@ -371,13 +385,14 @@ def fetch_coingecko_data(
                     ]
                 ):
                     if attempt < max_retries:
-                        # Exponential backoff for rate limits
-                        delay = base_delay * (2**attempt)
+                        # Exponential backoff with jitter to avoid thundering herd
+                        delay = min(base_delay * (2**attempt), max_delay)
+                        jitter = delay * (0.5 + random.random())  # Add 50-150% jitter
                         context.log.warning(
                             f"⚠️ Rate limit hit for {coin_id} (attempt {attempt + 1}/{max_retries}). "
-                            f"Waiting {delay}s before retry..."
+                            f"Waiting {jitter:.1f}s before retry..."
                         )
-                        time.sleep(delay)
+                        time.sleep(jitter)
                         continue
                     else:
                         # Final attempt failed due to rate limit
