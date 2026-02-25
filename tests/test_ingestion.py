@@ -218,8 +218,18 @@ class TestCalculateDaysToFetch:
 class TestMergeData:
     """Tests for merge_data function."""
 
-    def _create_test_df(self, records: list) -> pl.DataFrame:
-        """Helper to create test DataFrame."""
+    def _create_test_df(
+        self,
+        records: list[tuple[str, str, pendulum.DateTime, pendulum.DateTime, float, float, float]],
+    ) -> pl.DataFrame:
+        """Helper to create test DataFrame.
+
+        Args:
+            records: List of tuples containing (coin, currency, ingested_at, recorded_at, price, market_cap, volume)
+
+        Returns:
+            Polars DataFrame with the test data
+        """
         return pl.DataFrame(
             {
                 "coin": [r[0] for r in records],
