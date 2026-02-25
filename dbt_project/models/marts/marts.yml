@@ -126,7 +126,7 @@ models:
 
       - name: volatility_pct
         description: |
-          Intraday volatility percentage: (High - Low) / Low * 100.
+          Intraday volatility percentage: ((High - Low) / Low) * 100.
           Risk metric indicating price movement intensity during the trading day.
           Used for risk assessment, position sizing, and volatility analysis.
         tests:
@@ -136,7 +136,7 @@ models:
 
       - name: samples_count
         description: |
-          Number of price samples aggregated for the day.
+          Number of hourly price samples aggregated for the day.
           Data quality metric indicating data completeness and reliability.
           Should be 24 for complete daily data (hourly granularity).
         tests:
@@ -165,3 +165,23 @@ models:
               min_value: 0
               config:
                 where: "sma_25 is not null"
+
+      - name: daily_change_pct
+        description: |
+          Daily price change percentage: ((Close - Open) / Open) * 100.
+          Performance metric indicating daily price movement direction and magnitude.
+          Used for daily performance analysis and momentum indicators.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -100
+              max_value: 100
+
+      - name: price_range
+        description: |
+          Absolute price range: High price - Low price.
+          Price volatility metric representing the total price movement during the trading day.
+          Used for volatility analysis and trading range identification.
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
