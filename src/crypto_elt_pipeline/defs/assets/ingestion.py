@@ -98,7 +98,7 @@ def get_latest_timestamp(coin_id: str) -> pendulum.DateTime | None:
         coin_id: Cryptocurrency identifier
 
     Returns:
-        Latest timestamp or None if no data exists
+        Latest timestamp as timezone-aware UTC datetime, or None if no data exists
     """
     try:
         with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
@@ -106,7 +106,14 @@ def get_latest_timestamp(coin_id: str) -> pendulum.DateTime | None:
                 "SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?",
                 [coin_id],
             ).fetchone()
-            return result[0] if result and result[0] else None
+            if result and result[0]:
+                # Convert to timezone-aware UTC datetime
+                ts = result[0]
+                if ts.tzinfo is None:
+                    # Assume UTC if no timezone info
+                    return pendulum.instance(ts, tz="UTC")
+                return pendulum.instance(ts)
+            return None
     except (duckdb.Error, FileNotFoundError):
         # Table doesn't exist yet or database doesn't exist
         return None
@@ -182,6 +189,16 @@ def merge_data(existing_df: pl.DataFrame, new_df: pl.DataFrame) -> pl.DataFrame:
 
     if new_df.is_empty():
         return existing_df
+
+    # Ensure consistent datetime types by converting both to timezone-naive UTC
+    existing_df = existing_df.with_columns(
+        pl.col("recorded_at").dt.replace_time_zone(None).alias("recorded_at"),
+        pl.col("ingested_at").dt.replace_time_zone(None).alias("ingested_at"),
+    )
+    new_df = new_df.with_columns(
+        pl.col("recorded_at").dt.replace_time_zone(None).alias("recorded_at"),
+        pl.col("ingested_at").dt.replace_time_zone(None).alias("ingested_at"),
+    )
 
     # Concatenate and deduplicate by recorded_at (keep last = new data)
     merged = pl.concat([existing_df, new_df]).unique(
