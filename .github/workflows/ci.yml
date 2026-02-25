@@ -11,39 +11,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          python-version: '3.12'
-      
+          python-version: "3.12"
+
       - name: Install dependencies
         run: uv sync
-      
+
       - name: Run ruff linting
         run: uv run ruff check .
-      
+
       - name: Check formatting
         run: uv run ruff format --check .
+
+      - name: Run SQLFluff on dbt models
+        run: uv run sqlfluff lint dbt_project/models --config dbt_project/.sqlfluff
+
+      - name: Run mypy type checking
+        run: uv run mypy src/crypto_elt_pipeline --ignore-missing-imports --no-error-summary || true
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          python-version: '3.12'
-      
+          python-version: "3.12"
+
       - name: Install dependencies
         run: uv sync
-      
+
       - name: Run tests with coverage and junit report
         run: uv run pytest tests/ -v --cov=src/crypto_elt_pipeline --cov-report=xml --cov-report=term --junitxml=junit.xml
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -53,7 +59,7 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           verbose: true
-      
+
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
@@ -63,3 +69,31 @@ jobs:
           flags: unittests
           report_type: test_results
           verbose: true
+
+  dbt:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install dbt dependencies
+        run: cd dbt_project && uv run dbt deps
+
+      - name: Generate dbt documentation
+        run: cd dbt_project && uv run dbt docs generate
+
+      - name: Upload dbt docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: dbt_project/target/
+          retention-days: 7
