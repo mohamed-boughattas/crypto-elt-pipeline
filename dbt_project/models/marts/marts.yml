@@ -1,39 +1,167 @@
 version: 2
 
 models:
-  - name: fct_daily_btc_candlesticks
-    description: "Daily OHLC (Open, High, Low, Close) candlestick data for Bitcoin."
-    
+  - name: fct_crypto_candlesticks
+    description: |
+      Gold layer: Daily OHLC candlestick data with moving averages for technical analysis.
+
+      **Purpose**: Analytics-ready daily aggregations for trading analysis and dashboard reporting.
+      **Business Value**: Provides standardized candlestick data for technical indicators and trend analysis.
+      **Data Quality**: Comprehensive validation of financial metrics and business logic.
+
+      **Technical Details**:
+      - Materialized as TABLE (not incremental) because window functions
+        (SMA calculations) require full historical context for correct values.
+      - DuckDB efficiently handles full recomputation for this data volume.
+      - Optimized for time-series analysis and dashboard queries.
+
+      **Grain**: One row per (coin, trade_date) - daily candlestick
+      **Time Zone**: UTC for consistent global analysis
+      **Currency**: USD for standardized comparison
+
+      **Financial Metrics**:
+      - OHLC prices derived from hourly observations using financial best practices
+      - Daily volume aggregated from hourly trading data
+      - 7-day and 25-day simple moving averages for trend analysis
+      - Intraday volatility percentage for risk assessment
+
+      **Use Cases**:
+      - Technical analysis and trading strategy development
+      - Dashboard reporting and market monitoring
+      - Historical trend analysis and backtesting
+      - Risk management and volatility assessment
+
     tests:
+      # Composite unique key test (coin + trade_date)
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - coin
+            - trade_date
+      # OHLC logical consistency tests - critical for financial data integrity
       - dbt_utils.expression_is_true:
           expression: "high_price >= low_price"
-      - dbt_utils.expression_is_true:
-          expression: "high_price >= open_price and high_price >= close_price"
-      - dbt_utils.expression_is_true:
-          expression: "low_price <= open_price and low_price <= close_price"
-      - dbt_utils.expression_is_true:
-          expression: "open_price > 0"
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: high_price
+          column_B: open_price
+          or_equal: true
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: high_price
+          column_B: close_price
+          or_equal: true
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: open_price
+          column_B: low_price
+          or_equal: true
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: close_price
+          column_B: low_price
+          or_equal: true
 
     columns:
-      - name: trade_date
-        description: "The date of the candlestick (primary key)."
+      - name: coin
+        description: |
+          The cryptocurrency identifier (e.g., 'bitcoin', 'ethereum').
+          Used for filtering and grouping analysis by specific cryptocurrencies.
+          Critical for portfolio analysis and comparative performance.
         tests:
-          - unique
+          - not_null
+
+      - name: trade_date
+        description: |
+          The date of the candlestick (UTC).
+          Primary time dimension for daily analysis and trend identification.
+          Used for time-series queries and historical analysis.
+        tests:
           - not_null
 
       - name: open_price
-        description: "The price at the first recorded timestamp of the day."
+        description: |
+          Price at the first recorded timestamp of the day (opening price).
+          Financial metric representing the market opening level.
+          Used in technical analysis for gap identification and trend analysis.
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.00000001
 
       - name: close_price
+        description: |
+          Price at the last recorded timestamp of the day (closing price).
+          Most important price for daily analysis and moving average calculations.
+          Used for performance measurement and technical indicator calculations.
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.00000001
 
       - name: high_price
+        description: |
+          Highest price recorded during the day.
+          Key metric for resistance levels and price range analysis.
+          Used in volatility calculations and technical analysis.
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.00000001
 
       - name: low_price
+        description: |
+          Lowest price recorded during the day.
+          Key metric for support levels and price range analysis.
+          Used in volatility calculations and technical analysis.
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.00000001
+
+      - name: daily_volume
+        description: |
+          Total trading volume for the day (USD).
+          Indicator of market activity, liquidity, and trading interest.
+          Used for volume analysis and confirming price movements.
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: volatility_pct
+        description: |
+          Intraday volatility percentage: (High - Low) / Low * 100.
+          Risk metric indicating price movement intensity during the trading day.
+          Used for risk assessment, position sizing, and volatility analysis.
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: samples_count
+        description: |
+          Number of price samples aggregated for the day.
+          Data quality metric indicating data completeness and reliability.
+          Should be 24 for complete daily data (hourly granularity).
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+      - name: sma_7
+        description: |
+          7-day simple moving average of close price.
+          Short-term trend indicator for momentum analysis and trading signals.
+          Used in crossover strategies and trend identification.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "sma_7 is not null"
+
+      - name: sma_25
+        description: |
+          25-day simple moving average of close price.
+          Medium-term trend indicator for longer-term trend analysis.
+          Used for identifying major trend direction and support/resistance levels.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "sma_25 is not null"
