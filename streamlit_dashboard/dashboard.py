@@ -318,6 +318,9 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
 
     Returns:
         Polars DataFrame with OHLCV data and computed metrics
+
+    Raises:
+        DataError: If data is unavailable or stale, with user-friendly message.
     """
     try:
         query = """
@@ -341,12 +344,36 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
         df = conn.execute(query, [coin, str(start), str(end)]).pl()
 
         if df.is_empty():
-            return pl.DataFrame()
+            raise DataError(
+                f"No data available for {coin.upper()} in the selected period. "
+                "Please run the pipeline first: `make pipeline`"
+            )
+
+        # Check for stale data (no data in last 48 hours)
+        latest_date = df["trade_date"].max()
+        if latest_date:
+            days_since_update = (pendulum.now("UTC").date() - latest_date).days
+            if days_since_update > 2:
+                st.warning(
+                    f"⚠️ Data may be stale. Last update: {latest_date} ({days_since_update} days ago). "
+                    "Run `make pipeline` to refresh."
+                )
 
         return df
 
-    except Exception:
-        return pl.DataFrame()
+    except DataError:
+        raise  # Re-raise DataError with user-friendly message
+    except Exception as e:
+        raise DataError(
+            f"Unable to load data for {coin.upper()}. "
+            "Please check if the pipeline has been run and the database exists."
+        ) from e
+
+
+class DataError(Exception):
+    """Custom exception for data-related errors with user-friendly messages."""
+
+    pass
 
 
 # --- APP HEADER ---
@@ -375,10 +402,20 @@ with col2:
 
 # --- SINGLE COIN ANALYSIS ---
 # Get data for the primary selected coin
-df = get_market_data(selected_coin, start_date, end_date)
+try:
+    df = get_market_data(selected_coin, start_date, end_date)
+except DataError as e:
+    st.error(str(e))
+    with st.expander("Need help?"):
+        st.markdown("""
+        **Quick Start:**
+        1. Run `make pipeline` to fetch and process data
+        2. Refresh this page
 
-if df.is_empty():
-    st.warning("No data available for the selected period.")
+        **Troubleshooting:**
+        - Ensure Docker is running (required for PyAirbyte)
+        - Check if `data/crypto.duckdb` exists
+        """)
     st.stop()
 
 # Add computed columns using Polars expressions
