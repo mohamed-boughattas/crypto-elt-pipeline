@@ -40,7 +40,7 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-![Architecture Diagram](docs/diagrams/architecture.png)
+[![Architecture Diagram](docs/diagrams/architecture.png)](docs/diagrams/architecture.png)
 
 **Data Flow:**
 
