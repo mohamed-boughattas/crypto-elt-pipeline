@@ -1,8 +1,17 @@
-# Bitcoin Analysis Pipeline
+# Crypto ELT Pipeline
 
-> **Modern ELT pipeline** analyzing Bitcoin market trends through OHLC candlestick charts and volatility metrics. Built with Dagster, PyAirbyte, dbt, DuckDB, and Streamlit.
+> **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml)
+[![pytest](https://img.shields.io/badge/testing-pytest-green)](https://docs.pytest.org/)
+[![Pandera](https://img.shields.io/badge/validation-Pandera-blue)](https://pandera.readthedocs.io/)
+[![Polars](https://img.shields.io/badge/dataframe-Polars-orange)](https://pola.rs/)
+[![PyAirbyte](https://img.shields.io/badge/extractor-PyAirbyte-blueviolet)](https://pyairbyte.readthedocs.io/)
+[![uv](https://img.shields.io/badge/package%20manager-uv-blue)](https://docs.astral.sh/uv/)
+[![Ruff](https://img.shields.io/badge/linting-Ruff-green)](https://docs.astral.sh/ruff/)
+[![Docker](https://img.shields.io/badge/infrastructure-Docker-blue)](https://www.docker.com/)
+[![Codecov](https://img.shields.io/badge/coverage-Codecov-blue)](https://app.codecov.io/gh/mohamed-boughattas/crypto-elt-pipeline)
 [![Dagster](https://img.shields.io/badge/orchestration-Dagster-blueviolet)](https://dagster.io/)
 [![dbt](https://img.shields.io/badge/transformation-dbt-orange)](https://www.getdbt.com/)
 [![DuckDB](https://img.shields.io/badge/database-DuckDB-yellow)](https://duckdb.org/)
@@ -14,24 +23,63 @@
 
 Automated pipeline that:
 
-- 📥 **Extracts** Bitcoin market data from CoinGecko API using PyAirbyte
+- 📥 **Extracts** cryptocurrency market data from CoinGecko API using PyAirbyte (incremental loading)
 - 🔄 **Transforms** raw data into analytics-ready OHLC candlesticks (dbt + Medallion Architecture)
 - 📊 **Visualizes** trends via interactive Streamlit dashboard
 - 🚀 **Orchestrates** everything through Dagster with full data lineage
+- ⏰ **Schedules** daily automated refreshes at 6 AM UTC
 
-**Key Innovation:** Uses **incremental materialization** in dbt Gold layer for 100x faster refreshes vs. full rebuilds.
+**Supported Cryptocurrencies:** Bitcoin, Ethereum, XRP, Solana, Cardano, Avalanche, Polkadot, BNB, Chainlink, Dogecoin (10 coins)
+
+**Key Innovations:**
+
+- **Incremental extraction** reduces API calls by ~97% on daily runs
+- **Incremental Silver layer** for efficient data processing
 
 ---
 
 ## 🏗️ Architecture Overview
 
-![Architecture Diagram](docs/images/architecture_horizontal.svg)
+```mermaid
+graph LR
+    subgraph Config["⚙️ Configuration"]
+        Y[coins.yaml<br/>10 cryptocurrencies]
+    end
+
+    A[CoinGecko API] -->|PyAirbyte<br/>incremental| B[Bronze Layer<br/>raw.crypto_prices]
+    B -->|dbt incremental| C[Silver Layer<br/>staging.stg_crypto_prices]
+    C -->|dbt table| D[Gold Layer<br/>mart.fct_crypto_candlesticks]
+    D --> E[Streamlit<br/>Dashboard]
+
+    F[Dagster<br/>Orchestrator] -.->|manages| B
+    F -.->|manages| C
+    F -.->|manages| D
+    F -.->|schedule 6AM UTC| A
+
+    Y -.->|defines coins| B
+
+    subgraph DuckDB["DuckDB Database"]
+        B
+        C
+        D
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#ff9,stroke:#333,stroke-width:2px
+    style C fill:#9f9,stroke:#333,stroke-width:2px
+    style D fill:#99f,stroke:#333,stroke-width:2px
+    style E fill:#f99,stroke:#333,stroke-width:2px
+    style F fill:#fff,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    style Y fill:#ddd,stroke:#333,stroke-width:2px
+    style DuckDB fill:#eef,stroke:#33f,stroke-width:3px,stroke-dasharray: 5 5
+    style Config fill:#f5f5f5,stroke:#666,stroke-width:1px
+```
 
 **Data Flow:**
 
-1. **Bronze**: Raw CoinGecko data (immutable landing zone)
-2. **Silver**: Cleaned & typed (`stg_bitcoin_prices`)
-3. **Gold**: Business metrics (`fct_daily_btc_candlesticks` - incremental)
+1. **Bronze**: Raw nested CoinGecko data (immutable landing zone) - Pandera validated
+2. **Silver**: Flattened & cleaned (`stg_crypto_prices`) - incremental, dbt tested
+3. **Gold**: Business metrics (`fct_crypto_candlesticks`) - table with SMAs
 
 > **📚 Deep dive:** [System Design Documentation](docs/system-design.md)
 
@@ -43,6 +91,7 @@ Automated pipeline that:
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) installed
+- Docker (required for PyAirbyte connectors)
 
 ### Run the Pipeline
 
@@ -82,40 +131,42 @@ make start
 ```text
 crypto-elt-pipeline/
 ├── src/crypto_elt_pipeline/      # Core Orchestration Logic
-│   ├── definitions.py            # Dagster entry point (SDA definitions)
-│   ├── constants.py              # Global paths & API configurations
-│   └── defs/                     # Modular Dagster components
+│   ├── definitions.py            # Dagster entry point
+│   ├── config.py                 # Centralized configuration (coins.yaml loader)
+│   ├── constants.py              # Global paths
+│   └── defs/
 │       ├── assets/
-│       │   ├── ingestion.py      # PyAirbyte: Extraction logic (Bronze)
-│       │   ├── dbt.py            # Dagster-dbt: Integration logic
-│       │   └── external.py       # Source asset definitions
-│       └── resources.py          # DuckDB-Polars I/O Manager & dbt resources
+│       │   ├── ingestion.py      # PyAirbyte extraction (Bronze)
+│       │   ├── dbt.py            # Dagster-dbt integration
+│       │   └── external.py       # External asset definitions
+│       ├── schedules.py          # Schedules & sensors
+│       └── resources.py          # DuckDB-Polars I/O Manager
+│
+├── config/
+│   └── coins.yaml                # Single source of truth for coins
 │
 ├── dbt_project/                  # Transformation Layer (Medallion)
 │   ├── models/
-│   │   ├── staging/              # Silver Layer: Normalization & cleaning
-│   │   └── marts/                # Gold Layer: Incremental OHLC & volatility
-│   ├── dbt_project.yml           # dbt config
-│   └── profiles.yml              # DuckDB connection profile
+│   │   ├── staging/              # Silver Layer
+│   │   └── marts/                # Gold Layer
+│   ├── macros/
+│   │   └── financial_calculations.sql  # Reusable financial macros
+│   └── dbt_project.yml
 │
 ├── streamlit_dashboard/          # Presentation Layer
-│   └── dashboard.py              # Interactive Bitcoin analytics
+│   └── dashboard.py              # Interactive crypto analytics
 │
-├── docs/                         # Professional Documentation Hub
-│   ├── index.md                  # Documentation entry point
-│   ├── architecture.md           # System design & data flow
-│   ├── data-modeling.md          # dbt logic & OHLC math
-│   └── setup-guide.md            # Environment & uv instructions
+├── tests/                        # Test Suite (67 tests)
+│   ├── conftest.py               # Shared fixtures
+│   ├── test_constants.py         # Path tests
+│   ├── test_schemas.py           # Schema validation tests
+│   ├── test_ingestion.py         # Ingestion tests
+│   └── test_integration.py       # End-to-end tests
 │
-├── data/                         # Local Warehouse (Gitignored)
-│   └── crypto.duckdb             # DuckDB analytical database
-│
-├── .dagster_home/                # Persistence & Isolation (Gitignored)
-│   └── source-coingecko-coins/   # Isolated PyAirbyte workspace
-│
-├── Makefile                      # Project automation (make start, make clean)
-├── pyproject.toml                # uv dependency management
-└── README.md                     # High-level "Billboard" summary
+├── docs/                         # Documentation
+├── data/                         # DuckDB database (gitignored)
+├── Makefile                      # Project automation
+└── pyproject.toml                # Dependencies
 ```
 
 ---
@@ -124,12 +175,19 @@ crypto-elt-pipeline/
 
 ```bash
 make start          # Full pipeline + dashboard (automated)
-make orchestrate    # Open Dagster UI
-make pipeline       # Run data pipeline only
+make pipeline       # Run data pipeline (all coins)
+make dev            # Launch Dagster development server
 make dashboard      # Launch Streamlit dashboard
-make status         # System health check
-make clean          # Clean temporary files
-make clean-all      # Full cleanup (temp + database)
+make test           # Run all tests
+make lint           # Run linting and format checks
+make clean          # Clean generated files (preserves history)
+```
+
+### Advanced Commands
+
+```bash
+make coin=bitcoin pipeline-coin  # Run pipeline for specific coin
+make deep-clean                  # Full clean including run history
 ```
 
 > **All commands:** run `make help`
@@ -140,15 +198,18 @@ make clean-all      # Full cleanup (temp + database)
 
 ### 🚀 Performance
 
-- **Incremental dbt models**: Only processes new data (100x faster daily refreshes)
+- **Incremental extraction**: Only fetches new data since last run (~97% fewer API calls)
+- **Incremental Silver layer**: Only processes new data (100x faster daily refreshes)
 - **Polars I/O Manager**: 5-10x faster than Pandas for DataFrame operations
 - **Smart refresh**: Always re-processes current day for intra-day accuracy
+- **Hourly resampling**: Normalizes API granularity differences automatically
 
 ### 🏗️ Architecture
 
 - **Medallion layers**: Bronze → Silver → Gold data quality progression
 - **Software-Defined Assets**: Full data lineage tracking in Dagster
 - **Idempotent pipeline**: Safe to re-run anytime without duplicates
+- **Centralized configuration**: Single source of truth via `config/coins.yaml`
 
 ### 📈 Analytics
 
@@ -157,6 +218,20 @@ make clean-all      # Full cleanup (temp + database)
 - Volume-weighted analysis
 - Real-time price tracking
 - Historical trend visualization
+- 7-day and 25-day simple moving averages
+- Daily price change percentage
+
+### 🎨 Enhanced dbt Transformations
+
+- **Comprehensive testing framework**: Unit tests for data quality validation
+- **Professional documentation**: Detailed column descriptions with business context
+- **Reusable macros**: Standardized financial calculations for consistency
+  - `calculate_volatility()` - Intraday volatility percentage
+  - `calculate_simple_moving_average()` - Configurable window SMAs
+  - `calculate_price_change()` - Daily price change percentage
+  - `calculate_price_range()` - Absolute price range
+- **Performance optimization**: Strategic clustering and indexing for time-series queries
+- **Data quality tracking**: Sample count and completeness metrics
 
 > **Feature details:** [Data Modeling](docs/data-modeling.md)
 
@@ -169,6 +244,7 @@ make clean-all      # Full cleanup (temp + database)
 | [📐 System Design](docs/system-design.md) | Detailed system design & component breakdown |
 | [🗂️ Data Modeling](docs/data-modeling.md) | Medallion architecture & dbt transformations |
 | [🚀 Setup Guide](docs/setup-guide.md) | Detailed installation & configuration |
+| [🧪 Testing Guide](docs/testing.md) | Testing strategy & writing tests |
 
 ---
 
@@ -178,7 +254,7 @@ This pipeline demonstrates modern data engineering patterns:
 
 - ✅ **ELT over ETL**: Load first, transform in the warehouse
 - ✅ **Asset-based orchestration**: Focus on "what to build" not "what to do"
-- ✅ **Incremental transformations**: Process only new data
+- ✅ **Incremental extraction & transformations**: Process only new data
 - ✅ **Embedded analytics**: No infrastructure overhead
 - ✅ **Code-first approach**: Everything in version control
 
@@ -189,22 +265,28 @@ This pipeline demonstrates modern data engineering patterns:
 ## 🔄 Data Flow
 
 ```text
-1. Extract   → PyAirbyte fetches Bitcoin data from CoinGecko API
-2. Load      → Raw data lands in raw.bitcoin_prices (Bronze) via Polars
+1. Extract   → PyAirbyte fetches crypto data from CoinGecko API (incremental)
+2. Load      → Raw data lands in raw.crypto_prices (Bronze) via Polars
 3. Transform → dbt processes through staging (Silver) to marts (Gold)
 4. Visualize → Streamlit queries Gold layer for interactive analytics
 ```
+
+**Incremental Loading:**
+
+- First run: Fetches 30 days of historical data
+- Subsequent runs: Only fetches data since last timestamp (~97% fewer API calls)
+- Hourly resampling: Normalizes 5-minute granularity to hourly for consistency
 
 **Database Structure:**
 
 ```text
 crypto.duckdb
 ├── raw schema (Bronze)
-│   └── bitcoin_prices
+│   └── crypto_prices          # Nested raw data, partitioned by coin
 ├── staging schema (Silver)
-│   └── stg_bitcoin_prices
+│   └── stg_crypto_prices      # Flattened, cleaned time-series
 └── mart schema (Gold)
-    └── fct_daily_btc_candlesticks
+    └── fct_crypto_candlesticks # Daily OHLC per cryptocurrency
 ```
 
 ---
@@ -226,11 +308,12 @@ The Streamlit dashboard provides:
 
 Multiple validation layers ensure data reliability:
 
-1. **Pandera schemas** in PyAirbyte ingestion (Bronze)
-2. **dbt tests** for not-null & uniqueness (Silver)
-3. **Type safety** with explicit casting (Silver)
-4. **Business logic validation** in Gold layer
-5. **Sample count tracking** to detect data gaps
+1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
+2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
+3. **dbt tests** for not-null & uniqueness (Silver) - 67 pytest tests + dbt tests
+4. **Type safety** with explicit casting (Silver)
+5. **Business logic validation** in Gold layer - OHLC consistency checks
+6. **Sample count tracking** to detect data gaps
 
 ---
 
