@@ -321,6 +321,10 @@ Multiple validation layers ensure data reliability:
 
 - [CoinGecko](https://www.coingecko.com/) for free cryptocurrency API
 - [Dagster](https://dagster.io/) for modern orchestration
+- [PyAirbyte](https://docs.airbyte.com/using-airbyte/pyairbyte/) for code-first data extraction
 - [dbt Labs](https://www.getdbt.com/) for transformation framework
 - [DuckDB](https://duckdb.org/) for embedded analytics
 - [Polars](https://pola.rs/) for high-performance DataFrames
+- [Streamlit](https://streamlit.io/) for interactive dashboards
+- [Pandera](https://pandera.readthedocs.io/) for data validation
+- [uv](https://docs.astral.sh/uv/) for ultra-fast package management
