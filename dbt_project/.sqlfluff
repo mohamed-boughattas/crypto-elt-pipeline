@@ -1,0 +1,26 @@
+[sqlfluff]
+templater = jinja
+dialect = duckdb
+max_line_length = 120
+# Ignore template-related rules since we use custom dbt macros
+# These macros are valid dbt code but SQLFluff's Jinja templater can't resolve them
+ignore = templating, parsing
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+
+[sqlfluff:indentation]
+tab_space_size = 4
+indent_unit = space
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+capitalisation_policy = lower
+
+[sqlfluff:rules:layout.long_lines]
+ignore_comment_lines = True
+
+[sqlfluff:rules:aliasing.forbid]
+allow_scalar = True

@@ -1,79 +1,112 @@
-.PHONY: help status orchestrate pipeline dashboard start clean clean-all
+.PHONY: help setup start pipeline pipeline-coin dev dashboard test test-cov lint lint-dbt lint-dbt-fix clean deep-clean
 
-# --- CONFIGURATION ---
-# Dynamically find the absolute path of this project to satisfy Dagster's requirement
+# Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export DAGSTER_HOME := $(PROJECT_ROOT)/.dagster_home
-
-DASHBOARD_PATH = streamlit_dashboard/dashboard.py
 DB_PATH = data/crypto.duckdb
-DATA_DIR = data
-VENV_SENTINEL = .venv/.setup_done
+# COINS must match enabled coins in config/coins.yaml
+COINS = bitcoin ethereum ripple solana cardano avalanche-2 polkadot binancecoin chainlink dogecoin
 
-# --- MAIN TARGETS ---
+# Default target
 help:
-	@echo "₿ Bitcoin Analysis Pipeline"
-	@echo "===================================="
-	@echo "🚀 Main Commands:"
-	@echo "  make start       → Full automated run (Setup + Pipeline + Dashboard)"
-	@echo "  make dashboard   → Launch Streamlit Dashboard"
-	@echo "  make clean       → Clean temporary files"
+	@echo "Crypto Analysis Pipeline"
 	@echo ""
-	@echo "🛠️  Dev Commands:"
-	@echo "  make orchestrate → Open Dagster UI"
-	@echo "  make pipeline    → Run data pipeline"
-	@echo "  make status      → Check system health"
+	@echo "  make start     → Setup + Pipeline + Dashboard"
+	@echo "  make setup     → Install dependencies and create directories"
+	@echo "  make pipeline  → Run data pipeline (all 10 coins)"
+	@echo "  make coin=bitcoin pipeline-coin → Run pipeline for specific coin"
+	@echo "  make dev       → Launch Dagster development server"
+	@echo "  make dashboard → Launch Streamlit Dashboard"
+	@echo "  make test      → Run tests"
+	@echo "  make test-cov  → Run tests with coverage report"
+	@echo "  make lint      → Run linting and format checks"
+	@echo "  make lint-dbt  → Lint dbt models with SQLFluff"
+	@echo "  make lint-dbt-fix → Fix dbt linting issues"
+	@echo "  make clean     → Clean database and dbt target (preserves history)"
+	@echo "  make deep-clean → Full clean including .venv and .dagster_home"
 
-# Smart Setup: Ensures DAGSTER_HOME and VENV exist
-$(VENV_SENTINEL): pyproject.toml
-	@echo "📦 Syncing environment and dependencies..."
+# Setup environment
+setup:
 	@uv sync
-	@mkdir -p $(DATA_DIR) $(DAGSTER_HOME)
-	@touch $(VENV_SENTINEL)
+	@mkdir -p data $(DAGSTER_HOME)
+	@touch $(DAGSTER_HOME)/dagster.yaml
 
-setup: $(VENV_SENTINEL)
+# Full pipeline: Bronze → Silver → Gold (all 10 coins)
+pipeline: setup
+	@docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
+	@echo "⚡ Running pipeline (all 10 coins)..."
+	@echo ""
+	@echo "📦 Bronze Layer: Ingesting raw data..."
+	@for coin in $(COINS); do \
+		echo "  Processing $$coin..."; \
+		uv run dg launch --assets 'raw/crypto_prices' --partition $$coin || exit 1; \
+	done
+	@echo ""
+	@echo "🔄 Silver & Gold Layers: Running dbt transformations..."
+	@uv run dg launch --assets 'staging/stg_crypto_prices,mart/fct_crypto_candlesticks' || exit 1
+	@echo ""
+	@echo "✅ Pipeline complete!"
 
-status:
-	@echo "🔍 System Status:"
-	@test -d .venv && echo "  ✓ Environment ready" || echo "  ✗ Run 'make setup'"
-	@test -d $(DAGSTER_HOME) && echo "  ✓ Dagster Home exists" || echo "  ⚠ No Dagster Home"
-	@test -f $(DB_PATH) && echo "  ✓ Database exists" || echo "  ⚠ No data yet"
+# Single coin pipeline (usage: make coin=bitcoin pipeline-coin)
+pipeline-coin: setup
+ifndef coin
+	@echo "❌ Error: coin parameter required. Usage: make coin=bitcoin pipeline-coin"
+	@exit 1
+endif
+	@docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
+	@echo "⚡ Running pipeline for $(coin)..."
+	@echo ""
+	@echo "📦 Bronze Layer: Ingesting raw data..."
+	@uv run dg launch --assets 'raw/crypto_prices' --partition $(coin)
+	@echo ""
+	@echo "🔄 Silver & Gold Layers: Running dbt transformations..."
+	@uv run dg launch --assets 'staging/stg_crypto_prices,mart/fct_crypto_candlesticks'
+	@echo ""
+	@echo "✅ Pipeline complete for $(coin)!"
 
-orchestrate: setup
-	@echo "🐙 Dagster UI → http://localhost:3000 (Home: $(DAGSTER_HOME))"
-	@mkdir -p $(DAGSTER_HOME)
+# Launch Streamlit dashboard
+dashboard:
+	@test -f $(DB_PATH) || $(MAKE) pipeline
+	@uv run streamlit run streamlit_dashboard/dashboard.py
+
+# One command to run everything
+start: pipeline dashboard
+
+# Launch Dagster development server
+dev: setup
 	@uv run dg dev
 
-pipeline: setup
-	@echo "⚡ Running pipeline..."
-	@mkdir -p $(DAGSTER_HOME)
-	@uv run dg launch --assets '*'
+# Run tests
+test: setup
+	@uv run pytest tests/ -v
 
-dashboard:
-	@if [ ! -f "$(DB_PATH)" ]; then \
-		echo "❌ Error: Database not found. Running pipeline first..."; \
-		$(MAKE) pipeline; \
-	fi
-	@echo "📊 Dashboard → http://localhost:8501"
-	@uv run streamlit run $(DASHBOARD_PATH)
+# Run tests with coverage
+test-cov: setup
+	@uv run pytest tests/ -v --cov=src/crypto_elt_pipeline --cov-report=term-missing
 
-start:
-	@echo "🚀 Starting Full Stack..."
-	@$(MAKE) setup
-	@$(MAKE) pipeline
-	@echo "✅ Pipeline complete. Launching dashboard..."
-	@$(MAKE) dashboard
+# Run linting and format checks
+lint: setup
+	@uv run ruff check src/ tests/
+	@uv run ruff format --check src/ tests/
 
-# --- CLEANUP ---
+# Lint dbt models with SQLFluff
+lint-dbt: setup
+	@cd dbt_project && uv run sqlfluff lint models/
+
+# Fix dbt linting issues with SQLFluff
+lint-dbt-fix: setup
+	@cd dbt_project && uv run sqlfluff fix models/
+
+# Clean generated files (preserves .dagster_home for run history)
 clean:
-	@echo "🧹 Cleaning temporary files..."
-	@rm -rf dbt_project/target/ dbt_project/logs/ .dg/ .tmp*
-	@rm -rf source-coingecko-coins/
+	@rm -rf data/*.duckdb data/*.duckdb.wal dbt_project/target
+	@rm -rf source-* /tmp/airbyte
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-clean-all: clean
-	@echo "🗑️  Full reset: removing database, venv, and Dagster history..."
-	@rm -f $(DB_PATH) $(DB_PATH).wal $(VENV_SENTINEL)
-	@rm -rf .venv/ $(DAGSTER_HOME)
+# Deep clean (including .dagster_home and .venv)
+deep-clean:
+	@rm -rf data/*.duckdb data/*.duckdb.wal .dagster_home dbt_project/target .venv
+	@rm -rf source-* /tmp/airbyte
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 .DEFAULT_GOAL := help

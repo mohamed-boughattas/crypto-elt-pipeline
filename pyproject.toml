@@ -11,9 +11,13 @@ dependencies = [
     "duckdb>=1.4.3",
     "pandas>=2.2.3",
     "pandera[polars]>=0.29.0",
+    "pendulum>=3.0.0",
     "plotly>=6.5.2",
     "polars>=1.38.1",
+    "pyyaml>=6.0.0",
     "streamlit>=1.54.0",
+    # Pin chardet to avoid RequestsDependencyWarning (sqlfluff installs chardet 6.x which exceeds requests' limit)
+    "chardet>=3.0.2,<6.0.0",
 ]
 
 [dependency-groups]
@@ -21,6 +25,28 @@ dev = [
     "dagster-webserver",
     "dagster-dg-cli",
     "ruff>=0.15.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "sqlfluff>=3.0.0",
+    "sqlfluff-templater-dbt>=3.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-v", "--tb=short", "--strict-markers"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+]
+filterwarnings = [
+    "ignore:.*Experimental.*",
+    "ignore:DeprecationWarning",
+    "ignore:The `field_name` argument on `with_info_after_validator_function` is deprecated",
 ]
 
 [build-system]
@@ -35,8 +61,32 @@ directory_type = "project"
 
 [tool.dg.project]
 root_module = "crypto_elt_pipeline"
-registry_modules = [
-    "crypto_elt_pipeline.components.*",
+registry_modules = ["crypto_elt_pipeline.components.*"]
+
+# --- Linting & Formatting (ruff) ---
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["crypto_elt_pipeline"]
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
