@@ -79,7 +79,7 @@ class TestProjectPaths:
     def test_project_root_exists(self):
         """Verify PROJECT_ROOT points to a valid directory."""
         assert PROJECT_ROOT.exists()
-    
+
     def test_duckdb_path_format(self):
         """Verify DUCKDB_PATH ends with .duckdb extension."""
         assert str(DUCKDB_PATH).endswith(".duckdb")
@@ -108,7 +108,7 @@ Tests for data ingestion logic including incremental loading, merging, and resam
 ```python
 class TestIngestionConfig:
     """Tests for IngestionConfig."""
-    
+
     def test_default_values(self):
         """Verify default configuration values come from config file."""
         config = IngestionConfig()
@@ -126,12 +126,12 @@ class TestCryptoPartitions:
 
 class TestCalculateDaysToFetch:
     """Tests for incremental loading logic."""
-    
+
     def test_no_existing_data(self):
         """When no existing data, should return default days."""
         result = calculate_days_to_fetch(None, 30)
         assert result == 30
-    
+
     def test_recent_data(self):
         """When data is recent, should fetch only 1 day."""
         recent_timestamp = pendulum.now("UTC").subtract(hours=1)
@@ -141,7 +141,7 @@ class TestCalculateDaysToFetch:
 
 class TestMergeData:
     """Tests for data merging and deduplication."""
-    
+
     def test_deduplication(self):
         """Should deduplicate by recorded_at, keeping new data."""
         merged = merge_data(existing_df, new_df)
@@ -151,7 +151,7 @@ class TestMergeData:
 
 class TestResampleToHourly:
     """Tests for hourly resampling."""
-    
+
     def test_uses_last_price(self):
         """Should use last price in the hour (closing price)."""
         result = resample_to_hourly(df_with_5min_data)
@@ -170,7 +170,7 @@ class TestDataFlow:
         df = db_connection.execute(
             "SELECT * FROM mart.fct_crypto_candlesticks"
         ).pl()
-        
+
         # High should be >= Low
         assert (df["high_price"] >= df["low_price"]).all()
 ```
@@ -187,6 +187,34 @@ class TestDataFlow:
 - Classes must start with `Test`
 - Functions must start with `test_`
 
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to automatically check code quality before each commit.
+
+**Setup:**
+
+```bash
+# Install pre-commit hooks (one-time setup)
+uv sync
+uv run pre-commit install
+```
+
+**What it checks:**
+
+- Ruff linting (Python errors and warnings)
+- Ruff formatting (code style)
+- SQLFluff (SQL linting for dbt models)
+- Trailing whitespace
+- YAML/TOML syntax
+- Large files (>1MB)
+- Private key detection
+
+**Run manually:**
+
+```bash
+uv run pre-commit run --all-files
+```
+
 ### Basic Test Structure
 
 ```python
@@ -196,15 +224,15 @@ import polars as pl
 
 class TestMyFeature:
     """Tests for MyFeature."""
-    
+
     def test_basic_functionality(self):
         """Test description explaining what is being tested."""
         # Arrange
         input_data = pl.DataFrame({"col": [1, 2, 3]})
-        
+
         # Act
         result = input_data.filter(pl.col("col") > 1)
-        
+
         # Assert
         assert result.height == 2
 ```

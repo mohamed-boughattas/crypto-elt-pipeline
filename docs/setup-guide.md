@@ -15,6 +15,27 @@ Complete installation and configuration guide for the Crypto ELT Pipeline.
 | **Docker** | Any     | Required for PyAirbyte connectors   |
 | **Git**    | Any     | Version control                     |
 
+> **Docker must be running before executing any pipeline commands.**
+>
+> PyAirbyte uses Docker containers to run data extraction connectors. If Docker is not running, the pipeline will fail with a connection error.
+
+### Optional: CoinGecko Pro API
+
+The pipeline uses the free CoinGecko API by default (10-50 calls/minute). For higher rate limits (500+ calls/minute), you can optionally use a Pro API key:
+
+1. Get your API key at: [CoinGecko API Pricing](https://www.coingecko.com/en/api/pricing)
+2. Create a `.env` file in the project root:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Add your API key to `.env`:
+
+   ```text
+   COINGECKO_API_KEY=your_api_key_here
+   ```
+
 ---
 
 ## 🔧 Installation
@@ -278,8 +299,8 @@ SELECT COUNT(*) FROM staging.stg_crypto_prices;
 SELECT coin, COUNT(*) FROM mart.fct_crypto_candlesticks GROUP BY coin;
 
 -- View latest data
-SELECT * FROM mart.fct_crypto_candlesticks 
-ORDER BY trade_date DESC 
+SELECT * FROM mart.fct_crypto_candlesticks
+ORDER BY trade_date DESC
 LIMIT 5;
 
 -- Exit

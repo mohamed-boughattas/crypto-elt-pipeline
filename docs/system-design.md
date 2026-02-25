@@ -69,6 +69,25 @@ Modern ELT pipeline demonstrating:
 - **Incremental loading**: Fetches only new data since last timestamp
 - **Hourly resampling**: Normalizes all data to consistent hourly granularity
 - **Automatic deduplication**: Merges new data with existing records
+- **Configurable retry**: Exponential backoff with jitter for rate limit handling
+- **API key support**: Optional CoinGecko Pro API key for higher rate limits
+
+**Configuration (`config/coins.yaml`):**
+
+```yaml
+ingestion:
+  vs_currency: usd
+  days_to_fetch: 30
+  retry_max_attempts: 3
+  retry_base_delay: 10  # seconds
+  retry_max_delay: 60   # seconds
+```
+
+**Environment variables (`.env`):**
+
+```bash
+COINGECKO_API_KEY=your_api_key_here  # Optional
+```
 
 **Key code:**
 
@@ -361,22 +380,22 @@ fig = go.Figure(data=[go.Candlestick(
 
 ### PyAirbyte vs. Custom API Code
 
-✅ **PyAirbyte**: Battle-tested, error handling, schema validation  
+✅ **PyAirbyte**: Battle-tested, error handling, schema validation
 ❌ Custom code: Need to implement retries, validation, rate limiting
 
 ### Dagster vs. Airflow
 
-✅ **Dagster**: Asset-centric, auto lineage, native Python, partitioning  
+✅ **Dagster**: Asset-centric, auto lineage, native Python, partitioning
 ❌ Airflow: Task-centric, manual lineage, Docker setup
 
 ### dbt vs. Python Transformations
 
-✅ **dbt**: SQL-based, built-in tests, incremental strategies  
+✅ **dbt**: SQL-based, built-in tests, incremental strategies
 ❌ Python: Less accessible, manual testing, no auto-docs
 
 ### DuckDB vs. PostgreSQL
 
-✅ **DuckDB**: Zero setup, columnar storage, fast aggregations  
+✅ **DuckDB**: Zero setup, columnar storage, fast aggregations
 ✅ **PostgreSQL**: Better for multi-user production (migration path available)
 
 ---
@@ -407,7 +426,7 @@ fig = go.Figure(data=[go.Candlestick(
 **Pipeline Execution Times:**
 
 - Parse: 0.58s
-- Compile: 0.46s  
+- Compile: 0.46s
 - Tests: 0.64s (46 tests)
 - Build: 1.06s (48 operations)
 - Documentation: Generated successfully

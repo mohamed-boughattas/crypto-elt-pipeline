@@ -56,6 +56,7 @@ Testing strategy and writing tests.
 
 - Testing philosophy
 - Running tests
+- Pre-commit hooks
 - Writing new tests
 - Test coverage
 
@@ -69,6 +70,7 @@ Testing strategy and writing tests.
 | Install and run            | [Setup Guide](setup-guide.md)      |
 | Learn data transformations | [Data Modeling](data-modeling.md)  |
 | Run or write tests         | [Testing Guide](testing.md)        |
+| Configure environment      | [Setup Guide - Environment](setup-guide.md#configuration) |
 
 ---
 
