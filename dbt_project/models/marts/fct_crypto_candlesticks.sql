@@ -80,6 +80,15 @@ with_smas as (
         -- 25-day Simple Moving Average
         {{ calculate_simple_moving_average('close_price', 25) }} as sma_25,
 
+        -- Bollinger Bands (20-day SMA ± 2 standard deviations)
+        {{ calculate_bollinger_band_middle('close_price', 20) }} as bb_middle,
+        {{ calculate_bollinger_band_upper('close_price', 20, 2) }} as bb_upper,
+        {{ calculate_bollinger_band_lower('close_price', 20, 2) }} as bb_lower,
+
+        -- Bollinger Band volatility indicators
+        {{ calculate_bollinger_band_width('close_price', 20, 2) }} as bb_width,
+        {{ calculate_bollinger_band_position('close_price', 20, 2) }} as bb_position,
+
         -- Additional calculated metrics for enhanced analysis
         -- Daily price change percentage
         {{ calculate_price_change('open_price', 'close_price') }} as daily_change_pct,
@@ -103,6 +112,11 @@ select
     samples_count,
     sma_7,
     sma_25,
+    bb_middle,
+    bb_upper,
+    bb_lower,
+    bb_width,
+    bb_position,
     daily_change_pct,
     price_range
 from with_smas

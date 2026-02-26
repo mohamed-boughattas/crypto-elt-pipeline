@@ -166,6 +166,63 @@ models:
               config:
                 where: "sma_25 is not null"
 
+      - name: bb_middle
+        description: |
+          Bollinger Band middle band (20-day simple moving average).
+          Central reference line for Bollinger Bands indicator.
+          Used as baseline for volatility analysis and trend identification.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "bb_middle is not null"
+
+      - name: bb_upper
+        description: |
+          Bollinger Band upper band (Middle + 2 standard deviations).
+          Upper volatility boundary for price movements.
+          Used to identify potential overbought conditions and resistance levels.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "bb_upper is not null"
+
+      - name: bb_lower
+        description: |
+          Bollinger Band lower band (Middle - 2 standard deviations).
+          Lower volatility boundary for price movements.
+          Used to identify potential oversold conditions and support levels.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "bb_lower is not null"
+
+      - name: bb_width
+        description: |
+          Bollinger Band width as percentage of middle band.
+          Volatility indicator showing band expansion/contraction.
+          Higher values indicate increased volatility, lower values indicate consolidation.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              config:
+                where: "bb_width is not null"
+
+      - name: bb_position
+        description: |
+          Price position relative to Bollinger Bands (0 to 1 scale).
+          0 = at lower band, 1 = at upper band, 0.5 = at middle band.
+          Can be negative when price breaks below lower band, or >1 when price breaks above upper band.
+          Used to identify price extremes and potential reversal points.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -0.15
+              max_value: 1.6
+              config:
+                where: "bb_position is not null"
+
       - name: daily_change_pct
         description: |
           Daily price change percentage: ((Close - Open) / Open) * 100.
