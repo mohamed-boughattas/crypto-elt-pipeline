@@ -381,3 +381,255 @@ class TestResampleToHourly:
         df = self._create_test_df(timestamps)
         result = resample_to_hourly(df)
         assert result["price"].item() == 50200.0  # Last price wins
+
+
+class TestUnnestMarketData:
+    """Tests for unnest_market_data function - the core data transformation function.
+
+    This function is critical as it flattens the nested CoinGecko API response
+    into a time-series format suitable for analytics.
+    """
+
+    def test_empty_raw_data(self):
+        """When raw data is empty, should return empty DataFrame with correct schema."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        raw_df = pl.DataFrame(
+            schema={
+                "prices": pl.List(pl.List(pl.Float64)),
+                "market_caps": pl.List(pl.List(pl.Float64)),
+                "total_volumes": pl.List(pl.List(pl.Float64)),
+            }
+        )
+
+        result = unnest_market_data(raw_df, "bitcoin", "usd")
+
+        # Should return empty DataFrame with correct schema
+        assert result.is_empty()
+        expected_columns = [
+            "coin",
+            "currency",
+            "ingested_at",
+            "recorded_at",
+            "price",
+            "market_cap",
+            "volume",
+        ]
+        assert list(result.columns) == expected_columns
+        assert result["coin"].dtype == pl.String
+        assert result["currency"].dtype == pl.String
+        assert result["ingested_at"].dtype == pl.Datetime
+        assert result["recorded_at"].dtype == pl.Datetime
+        assert result["price"].dtype == pl.Float64
+        assert result["market_cap"].dtype == pl.Float64
+        assert result["volume"].dtype == pl.Float64
+
+    def test_single_data_point(self):
+        """Test with single data point in nested structure."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [[1700000000000.0, 45000.50]],  # Single timestamp-price pair
+                ],
+                "market_caps": [
+                    [[1700000000000.0, 850000000000.0]],  # Single timestamp-market_cap pair
+                ],
+                "total_volumes": [
+                    [[1700000000000.0, 25000000000.0]],  # Single timestamp-volume pair
+                ],
+            },
+            strict=False,
+        )
+
+        result = unnest_market_data(raw_df, "bitcoin", "usd")
+
+        # Should return single row
+        assert result.height == 1
+        assert result["coin"].item() == "bitcoin"
+        assert result["currency"].item() == "usd"
+        assert result["price"].item() == 45000.50
+        assert result["market_cap"].item() == 850000000000.0
+        assert result["volume"].item() == 25000000000.0
+
+        # Verify timestamp conversion (milliseconds to microseconds)
+        expected_timestamp = pendulum.datetime(2023, 11, 14, 22, 13, 20, tz="UTC")
+        actual_timestamp = result["recorded_at"].item()
+        # Convert to pendulum for comparison
+        actual_pendulum = pendulum.instance(actual_timestamp, tz="UTC")
+        assert actual_pendulum == expected_timestamp
+
+    def test_multiple_data_points(self):
+        """Test with multiple data points in nested structure."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [
+                        [1700000000000.0, 45000.50],  # Timestamp 1
+                        [1700003600000.0, 45100.25],  # Timestamp 2
+                        [1700014400000.0, 45200.00],  # Timestamp 3 (next day, different hour)
+                    ],
+                ],
+                "market_caps": [
+                    [
+                        [1700000000000.0, 850000000000.0],  # Market cap 1
+                        [1700003600000.0, 852000000000.0],  # Market cap 2
+                        [1700014400000.0, 853000000000.0],  # Market cap 3
+                    ],
+                ],
+                "total_volumes": [
+                    [
+                        [1700000000000.0, 25000000000.0],  # Volume 1
+                        [1700003600000.0, 25500000000.0],  # Volume 2
+                        [1700014400000.0, 26000000000.0],  # Volume 3
+                    ],
+                ],
+            },
+            strict=False,
+        )
+
+        result = unnest_market_data(raw_df, "bitcoin", "usd")
+
+        # Should return 3 rows
+        assert result.height == 3
+
+        # Verify all columns are present and have correct values
+        assert list(result["coin"]) == ["bitcoin"] * 3
+        assert list(result["currency"]) == ["usd"] * 3
+        assert list(result["price"]) == [45000.50, 45100.25, 45200.00]
+        assert list(result["market_cap"]) == [850000000000.0, 852000000000.0, 853000000000.0]
+        assert list(result["volume"]) == [25000000000.0, 25500000000.0, 26000000000.0]
+
+        # Verify timestamps are in chronological order
+        timestamps = result["recorded_at"].to_list()
+        assert timestamps[0] < timestamps[1] < timestamps[2]
+
+    def test_mismatched_data_points_length(self):
+        """Test behavior when nested lists have different lengths (edge case)."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [
+                        [1700000000000.0, 45000.50],  # 2 price points
+                        [1700003600000.0, 45100.25],
+                    ],
+                ],
+                "market_caps": [
+                    [
+                        [1700000000000.0, 850000000000.0],  # 1 market cap point
+                    ],
+                ],
+                "total_volumes": [
+                    [
+                        [1700000000000.0, 25000000000.0],  # 1 volume point
+                    ],
+                ],
+            },
+            strict=False,
+        )
+
+        # This should raise an error due to data length mismatch
+        try:
+            result = unnest_market_data(raw_df, "bitcoin", "usd")
+            # If it doesn't raise an error, verify the behavior
+            assert result.height == 1  # Should only process the first timestamp
+        except ValueError as e:
+            # This is expected behavior - the function should handle this gracefully
+            assert "Data length mismatch" in str(e)
+
+    def test_different_coin_and_currency(self):
+        """Test with different cryptocurrency and currency combinations."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [[1700000000000.0, 2500.75]],
+                ],
+                "market_caps": [
+                    [[1700000000000.0, 300000000000.0]],
+                ],
+                "total_volumes": [
+                    [[1700000000000.0, 15000000000.0]],
+                ],
+            },
+            strict=False,
+        )
+
+        result = unnest_market_data(raw_df, "ethereum", "eur")
+
+        assert result.height == 1
+        assert result["coin"].item() == "ethereum"
+        assert result["currency"].item() == "eur"
+        assert result["price"].item() == 2500.75
+        assert result["market_cap"].item() == 300000000000.0
+        assert result["volume"].item() == 15000000000.0
+
+    def test_precision_and_data_types(self):
+        """Test that data types and precision are maintained correctly."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        # Use high precision values to test data type preservation
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [[1700000000000.0, 45000.12345678]],  # High precision price
+                ],
+                "market_caps": [
+                    [[1700000000000.0, 850000000000.123456]],  # High precision market cap
+                ],
+                "total_volumes": [
+                    [[1700000000000.0, 25000000000.123456]],  # High precision volume
+                ],
+            },
+            strict=False,
+        )
+
+        result = unnest_market_data(raw_df, "bitcoin", "usd")
+
+        # Verify precision is maintained
+        assert abs(result["price"].item() - 45000.12345678) < 1e-8
+        assert abs(result["market_cap"].item() - 850000000000.123456) < 1e-3
+        assert abs(result["volume"].item() - 25000000000.123456) < 1e-3
+
+        # Verify data types
+        assert result["price"].dtype == pl.Float64
+        assert result["market_cap"].dtype == pl.Float64
+        assert result["volume"].dtype == pl.Float64
+
+    def test_timestamp_conversion_accuracy(self):
+        """Test that timestamp conversion from milliseconds to datetime is accurate."""
+        from crypto_elt_pipeline.defs.assets.ingestion import unnest_market_data
+
+        # Test with a known timestamp
+        test_timestamp_ms = 1700000000000.0  # 2023-11-14 22:13:20 UTC
+        raw_df = pl.DataFrame(
+            {
+                "prices": [
+                    [[test_timestamp_ms, 45000.50]],
+                ],
+                "market_caps": [
+                    [[test_timestamp_ms, 850000000000.0]],
+                ],
+                "total_volumes": [
+                    [[test_timestamp_ms, 25000000000.0]],
+                ],
+            },
+            strict=False,
+        )
+
+        result = unnest_market_data(raw_df, "bitcoin", "usd")
+
+        # Verify timestamp conversion
+        expected_datetime = pendulum.datetime(2023, 11, 14, 22, 13, 20, tz="UTC")
+        actual_datetime = result["recorded_at"].item()
+        # Convert to pendulum for comparison
+        actual_pendulum = pendulum.instance(actual_datetime, tz="UTC")
+
+        assert actual_pendulum == expected_datetime
+        # Note: Polars datetime objects don't preserve timezone info, but the conversion is correct
