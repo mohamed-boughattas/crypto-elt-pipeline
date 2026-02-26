@@ -25,6 +25,12 @@ import polars as pl
 
 from crypto_elt_pipeline.config import get_config
 from crypto_elt_pipeline.constants import DUCKDB_PATH
+from crypto_elt_pipeline.utils.cache import (
+    cache,
+    cache_result,
+    get_cache_key_for_api,
+    get_cache_key_for_unnest,
+)
 
 # Optional CoinGecko API key for Pro API access (higher rate limits)
 COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY")
@@ -291,6 +297,7 @@ class RateLimitError(Exception):
 # ------------------------------------------------------------------
 
 
+@cache_result(cache, key_func=get_cache_key_for_api, ttl_hours=1)
 def fetch_coingecko_data(
     coin_id: str,
     vs_currency: str,
@@ -385,7 +392,20 @@ def fetch_coingecko_data(
                     f"✅ Successfully fetched {records_count} records in {execution_time:.2f}s"
                 )
 
-                return pl.DataFrame([dict(r) for r in records], strict=False)
+                # Optimize DataFrame creation by pre-allocating and using efficient data structures
+                if records_count > 1000:  # For large datasets, optimize memory usage
+                    # Use more efficient data structure for large datasets
+                    return pl.DataFrame(
+                        [dict(r) for r in records],
+                        strict=False,
+                        schema={
+                            "prices": pl.List(pl.List(pl.Float64)),
+                            "market_caps": pl.List(pl.List(pl.Float64)),
+                            "total_volumes": pl.List(pl.List(pl.Float64)),
+                        },
+                    )
+                else:
+                    return pl.DataFrame([dict(r) for r in records], strict=False)
 
             except Exception as e:
                 execution_time = time.time() - start_time
@@ -423,7 +443,9 @@ def fetch_coingecko_data(
                         context.log.error(
                             f"❌ Failed to fetch data for {coin_id}: Rate limit exceeded."
                         )
-                        raise
+                        raise RateLimitError(
+                            f"Rate limit exceeded for {coin_id} after {max_retries} attempts"
+                        ) from e
 
                 # For other errors, just re-raise the original exception
                 raise
@@ -432,6 +454,7 @@ def fetch_coingecko_data(
     return _fetch_with_retry()
 
 
+@cache_result(cache, key_func=get_cache_key_for_unnest, ttl_hours=2)
 def unnest_market_data(raw_df: pl.DataFrame, coin_id: str, vs_currency: str) -> pl.DataFrame:
     """Unnest the nested list structure into flat time-series records.
 
@@ -468,50 +491,51 @@ def unnest_market_data(raw_df: pl.DataFrame, coin_id: str, vs_currency: str) -> 
     market_caps_data = raw_df["market_caps"].item()
     volumes_data = raw_df["total_volumes"].item()
 
-    # Create separate DataFrames for each metric
-    prices_df = pl.DataFrame(
+    # Validate that all lists have the same length
+    n_records = len(prices_data)
+    if len(market_caps_data) != n_records or len(volumes_data) != n_records:
+        raise ValueError(
+            f"Data length mismatch: prices={len(prices_data)}, "
+            f"market_caps={len(market_caps_data)}, volumes={len(volumes_data)}"
+        )
+
+    # Optimized data extraction using numpy arrays for better performance
+    import numpy as np
+
+    # Convert to numpy arrays for faster processing
+    # Convert Polars Series to list first before numpy conversion
+    prices_array = np.array(list(prices_data), dtype=np.float64)
+    market_caps_array = np.array(list(market_caps_data), dtype=np.float64)
+    volumes_array = np.array(list(volumes_data), dtype=np.float64)
+
+    # Extract columns efficiently
+    timestamps = prices_array[:, 0]
+    prices = prices_array[:, 1]
+    market_caps = market_caps_array[:, 1]
+    volumes = volumes_array[:, 1]
+
+    # Create DataFrame efficiently with numpy arrays
+    flattened_df = pl.DataFrame(
         {
-            "timestamp_ms": [p[0] for p in prices_data],
-            "price": [p[1] for p in prices_data],
+            "timestamp_ms": timestamps,
+            "price": prices,
+            "market_cap": market_caps,
+            "volume": volumes,
         }
     )
 
-    market_caps_df = pl.DataFrame(
-        {
-            "timestamp_ms": [m[0] for m in market_caps_data],
-            "market_cap": [m[1] for m in market_caps_data],
-        }
-    )
-
-    volumes_df = pl.DataFrame(
-        {
-            "timestamp_ms": [v[0] for v in volumes_data],
-            "volume": [v[1] for v in volumes_data],
-        }
-    )
-
-    # Join all metrics on timestamp
-    flattened_df = prices_df.join(market_caps_df, on="timestamp_ms", how="inner")
-    flattened_df = flattened_df.join(volumes_df, on="timestamp_ms", how="inner")
-
-    # Convert timestamp from milliseconds to datetime
-    # Polars Datetime expects microseconds by default, so multiply ms by 1000 to get us
+    # Convert timestamp from milliseconds to datetime and add metadata
+    current_time = pendulum.now("UTC")
     flattened_df = flattened_df.with_columns(
         [
             (pl.col("timestamp_ms") * 1000).cast(pl.Datetime("us")).alias("recorded_at"),
+            pl.lit(coin_id).cast(pl.String).alias("coin"),
+            pl.lit(vs_currency).cast(pl.String).alias("currency"),
+            pl.lit(current_time).alias("ingested_at"),
         ]
     ).drop("timestamp_ms")
 
-    # Add metadata columns
-    flattened_df = flattened_df.with_columns(
-        [
-            pl.lit(coin_id).cast(pl.String).alias("coin"),
-            pl.lit(vs_currency).cast(pl.String).alias("currency"),
-            pl.lit(pendulum.now("UTC")).alias("ingested_at"),
-        ]
-    )
-
-    # Reorder columns
+    # Reorder columns efficiently
     return flattened_df.select(
         ["coin", "currency", "ingested_at", "recorded_at", "price", "market_cap", "volume"]
     )
