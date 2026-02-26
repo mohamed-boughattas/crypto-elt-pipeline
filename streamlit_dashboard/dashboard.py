@@ -131,7 +131,10 @@ def get_available_coins() -> list:
         query = "SELECT DISTINCT coin FROM mart.fct_crypto_candlesticks ORDER BY coin"
         df = conn.execute(query).pl()
         return df["coin"].to_list()
-    except Exception:
+    except Exception as e:
+        # Log the error for debugging
+        st.error(f"Database error while fetching available coins: {str(e)}")
+        st.warning("⚠️ Unable to fetch coin list from database. Using fallback list.")
         return ["bitcoin"]  # Fallback
 
 
