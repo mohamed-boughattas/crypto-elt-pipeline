@@ -187,7 +187,10 @@ def stale_data_alert_sensor(context: dg.SensorEvaluationContext) -> dg.SensorRes
     # Parse cursor to get last check time (ISO format timestamp)
     cursor_data = context.cursor or ""
     last_check_str = cursor_data.split("|")[0] if "|" in cursor_data else cursor_data
-    last_check = pendulum.parse(last_check_str) if last_check_str else pendulum.from_timestamp(0)
+    _parsed = pendulum.parse(last_check_str) if last_check_str else pendulum.from_timestamp(0)
+    last_check: pendulum.DateTime = (
+        _parsed if isinstance(_parsed, pendulum.DateTime) else pendulum.from_timestamp(0)
+    )
 
     # Only create run requests if enough time has passed since last check
     seconds_since_last_check = (now - last_check).total_seconds()
