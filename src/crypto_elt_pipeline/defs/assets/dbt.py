@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,7 @@ dbt_project.prepare_if_dev()
 # 2. Custom Metadata Translator
 # Organizes the Dagster UI by grouping assets based on their dbt FQN.
 class CustomDagsterDbtTranslator(DagsterDbtTranslator):
-    def get_group_name(self, dbt_resource_props: dict[str, Any]) -> str | None:
+    def get_group_name(self, dbt_resource_props: Mapping[str, Any]) -> str | None:
         """Get the group name for a dbt resource based on its folder structure.
 
         Args:
@@ -35,25 +36,13 @@ class CustomDagsterDbtTranslator(DagsterDbtTranslator):
         group_mapping = {"raw": "Bronze", "staging": "Silver", "marts": "Gold"}
         return group_mapping.get(folder, "Default") if folder else None
 
-    # Maps dbt tests to native Dagster Asset Checks.
-    def get_asset_check_key(self, dbt_resource_props: dict[str, Any]) -> Any:
-        """Get the asset check key for a dbt resource.
-
-        Args:
-            dbt_resource_props: Dictionary containing dbt resource properties
-
-        Returns:
-            Asset check key for the dbt resource
-        """
-        return super().get_asset_check_key(dbt_resource_props)
-
 
 # 3. Translator Settings
-# Configures the translator to expose both model and source tests as checks.
+# Configures the translator to enable asset checks and disable source tests to avoid partitioning issues.
 translator_instance = CustomDagsterDbtTranslator(
     settings=DagsterDbtTranslatorSettings(
         enable_asset_checks=True,
-        enable_source_tests_as_checks=False,  # Disable source tests to avoid partition issues
+        enable_source_tests_as_checks=False,
     )
 )
 
