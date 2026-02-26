@@ -103,19 +103,19 @@ def crypto_prices(context) -> pl.DataFrame:
     # Check for existing data
     latest_timestamp = get_latest_timestamp(coin_id)
     days_to_fetch = calculate_days_to_fetch(latest_timestamp, default_days=30)
-    
+
     # PyAirbyte extraction (only needed data)
     raw_df = fetch_coingecko_data(coin_id, days=days_to_fetch, ...)
-    
+
     # Schema validation (Pandera)
     RawMarketChartSchema.validate(raw_df)
-    
+
     # Flatten nested lists
     new_df = unnest_market_data(raw_df, coin_id, vs_currency)
-    
+
     # Merge with existing data
     merged_df = merge_data(existing_df, new_df)
-    
+
     # Resample to hourly granularity
     return resample_to_hourly(merged_df)
 ```
@@ -141,17 +141,17 @@ select
     currency,
     ingested_at,
     recorded_at,
-    
+
     -- Price standardization (8 decimal places)
     round(price, 8) as price,
-    
+
     -- Financial metrics (2 decimal places)
     round(market_cap, 2) as market_cap,
     round(volume, 2) as volume
 
 from {{ source('coingecko', 'crypto_prices') }}
 
-where 
+where
     -- Data quality filters
     price > 0
     and recorded_at is not null
@@ -197,12 +197,12 @@ models:
         description: "Price timestamp (UTC)"
         tests:
           - not_null
-      
+
       - name: price
         description: "Price in USD"
         tests:
           - not_null
-      
+
       - name: coin
         description: "Cryptocurrency identifier"
         tests:
@@ -213,7 +213,7 @@ models:
 **Test Categories:**
 
 - **Source Tests (8)**: Schema validation, accepted values, null checks
-- **Silver Layer Tests (14)**: Data cleaning, type validation, business rules  
+- **Silver Layer Tests (14)**: Data cleaning, type validation, business rules
 - **Gold Layer Tests (24)**: OHLC consistency, financial logic, composite unique keys
 
 **Test Execution:**
@@ -265,20 +265,20 @@ ohlc_base as (
     select
         coin,
         date_trunc('day', recorded_at)::date as trade_date,
-        
+
         -- OHLC metrics (candlestick chart data)
         arg_min(price, recorded_at) as open_price,
         max(price) as high_price,
         min(price) as low_price,
         arg_max(price, recorded_at) as close_price,
-        
+
         -- Volume metrics
         sum(volume) as daily_volume,
         count(*) as samples_count,
-        
+
         -- Calculated metrics using macros
         {{ calculate_volatility('max(price)', 'min(price)') }} as volatility_pct
-        
+
     from source_data
     group by coin, date_trunc('day', recorded_at)::date
 ),
@@ -294,15 +294,15 @@ with_smas as (
         daily_volume,
         volatility_pct,
         samples_count,
-        
+
         -- Moving averages using reusable macros
         {{ calculate_simple_moving_average('close_price', 7) }} as sma_7,
         {{ calculate_simple_moving_average('close_price', 25) }} as sma_25,
-        
+
         -- Additional calculated metrics
         {{ calculate_price_change('open_price', 'close_price') }} as daily_change_pct,
         {{ calculate_price_range('high_price', 'low_price') }} as price_range
-        
+
     from ohlc_base
 )
 
@@ -326,6 +326,11 @@ select * from with_smas order by coin, trade_date
 | `sma_25` | DOUBLE | 25-day simple moving average |
 | `daily_change_pct` | DOUBLE | Daily price change percentage |
 | `price_range` | DOUBLE | Absolute price range (high - low) |
+| `bb_middle` | DOUBLE | Bollinger Band middle band (20-day SMA) |
+| `bb_upper` | DOUBLE | Bollinger Band upper band (Middle + 2σ) |
+| `bb_lower` | DOUBLE | Bollinger Band lower band (Middle - 2σ) |
+| `bb_width` | DOUBLE | Bollinger Band width as percentage of middle band |
+| `bb_position` | DOUBLE | Price position relative to Bollinger Bands (0-1 scale) |
 
 ---
 
@@ -360,6 +365,54 @@ arg_max(price, recorded_at)  -- Returns price at maximum timestamp
 ```sql
 ((high - low) / low) * 100
 ```
+
+---
+
+### Bollinger Bands Technical Analysis
+
+**Purpose**: Volatility-based technical indicators for trend analysis and trading signals
+
+**Components:**
+
+- **Middle Band**: 20-day simple moving average of closing prices
+- **Upper Band**: Middle band + (2 × standard deviation)
+- **Lower Band**: Middle band - (2 × standard deviation)
+
+**Technical Analysis Applications:**
+
+- **Volatility Assessment**: Band width indicates market volatility
+- **Trend Identification**: Price position relative to bands shows momentum
+- **Reversal Signals**: Price touching bands may indicate overbought/oversold conditions
+- **Breakout Detection**: Narrowing bands followed by expansion signals potential breakouts
+
+**Bollinger Band Calculations:**
+
+```sql
+-- Middle Band (20-day SMA)
+avg(close_price) over (partition by coin order by trade_date rows between 19 preceding and current row)
+
+-- Standard Deviation (20-day)
+stddev(close_price) over (partition by coin order by trade_date rows between 19 preceding and current row)
+
+-- Upper Band
+middle_band + (2 * standard_deviation)
+
+-- Lower Band
+middle_band - (2 * standard_deviation)
+
+-- Band Width (Volatility Indicator)
+((upper_band - lower_band) / middle_band) * 100
+
+-- Price Position (0-1 scale)
+(close_price - lower_band) / (upper_band - lower_band)
+```
+
+**Interpretation:**
+
+- **bb_position = 0**: Price at lower band (potentially oversold)
+- **bb_position = 0.5**: Price at middle band (neutral)
+- **bb_position = 1**: Price at upper band (potentially overbought)
+- **bb_width**: Higher values indicate increased volatility
 
 ---
 
@@ -409,7 +462,7 @@ The Gold layer uses reusable macros from `dbt_project/macros/financial_calculati
 **Performance Results (Actual):**
 
 - Parse: 0.58s
-- Compile: 0.46s  
+- Compile: 0.46s
 - Tests: 0.64s
 - Build: 1.06s
 - Documentation: Generated successfully
@@ -558,7 +611,7 @@ uv run dbt test --verbose
 ### Get Latest Price
 
 ```sql
-SELECT 
+SELECT
     coin,
     trade_date,
     close_price,
@@ -571,7 +624,7 @@ LIMIT 1;
 ### Calculate Moving Average
 
 ```sql
-SELECT 
+SELECT
     coin,
     trade_date,
     close_price,
@@ -586,7 +639,7 @@ ORDER BY coin, trade_date DESC;
 ### Find High Volatility Days
 
 ```sql
-SELECT 
+SELECT
     coin,
     trade_date,
     open_price,
