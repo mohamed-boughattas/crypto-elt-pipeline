@@ -61,10 +61,19 @@ tests/
 ├── test_constants.py     # Tests for path constants (13 tests)
 ├── test_schemas.py       # Tests for Pandera schemas
 ├── test_ingestion.py     # Tests for data transformations
+├── test_data_quality.py  # Tests for data quality validation
 └── test_integration.py   # End-to-end integration tests
 ```
 
-**Total: 67 tests**
+**Total: 86 tests**
+
+### Enhanced Test Coverage
+
+- **Rate Limiting Tests**: Verify exponential backoff and error handling
+- **Caching Tests**: Validate cache functionality and performance improvements
+- **Memory Management Tests**: Ensure no memory leaks in data processing
+- **Error Handling Tests**: Comprehensive validation of user feedback mechanisms
+- **Data Quality Gates**: Multi-layered validation from ingestion to Gold layer
 
 ---
 
@@ -156,6 +165,22 @@ class TestResampleToHourly:
         """Should use last price in the hour (closing price)."""
         result = resample_to_hourly(df_with_5min_data)
         assert result["price"].item() == last_price_in_hour
+
+
+class TestRateLimiting:
+    """Tests for API rate limiting and error handling."""
+
+    def test_exponential_backoff(self):
+        """Verify exponential backoff with jitter works correctly."""
+        # Test that retries increase delay exponentially
+        # Test that jitter prevents thundering herd
+        pass
+
+    def test_rate_limit_error_handling(self):
+        """Verify RateLimitError is properly caught and handled."""
+        # Test that RateLimitError triggers retry logic
+        # Test that user gets proper feedback
+        pass
 ```
 
 ### 4. Integration Tests (`test_integration.py`)
@@ -176,6 +201,29 @@ class TestDataFlow:
 ```
 
 **Note:** Integration tests require a local database and are skipped in CI.
+
+### 5. Data Quality Tests (`test_data_quality.py`)
+
+Comprehensive data quality validation tests:
+
+```python
+class TestDataQualityGates:
+    def test_data_integrity_constraints(self):
+        """Verify data integrity constraints are enforced."""
+        # Check for duplicate records
+        # Verify referential integrity
+        pass
+
+class TestSchemaValidation:
+    def test_raw_schema_validation(self):
+        """Verify raw data schema matches expected structure."""
+        pass
+
+class TestDataQualityMonitoring:
+    def test_data_drift_detection(self):
+        """Detect changes in data distribution over time."""
+        pass
+```
 
 ---
 

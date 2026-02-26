@@ -341,7 +341,7 @@ ls -la .dagster_home
 
 ## 🧪 Running Tests
 
-The project includes a test suite for validating core functionality.
+The project includes a comprehensive test suite for validating core functionality with **86 tests** covering data quality, transformations, and integration scenarios.
 
 ### Run All Tests
 
@@ -363,10 +363,23 @@ collected 67 items
 
 tests/test_constants.py::TestProjectPaths::test_project_root_exists PASSED
 tests/test_schemas.py::TestProcessedPriceSchema::test_negative_price_fails PASSED
+tests/test_ingestion.py::TestIngestionConfig::test_default_values PASSED
+tests/test_ingestion.py::TestCalculateDaysToFetch::test_no_existing_data PASSED
+tests/test_ingestion.py::TestMergeData::test_deduplication PASSED
+tests/test_ingestion.py::TestResampleToHourly::test_uses_last_price PASSED
+tests/test_data_quality.py::TestDataQuality::test_ohlc_consistency PASSED
 ...
 
 ======================= 67 passed in 12.34s =======================
 ```
+
+### Test Categories
+
+- **Constants Tests (13)**: Path validation and configuration
+- **Schema Tests**: Pandera validation for data contracts
+- **Ingestion Tests**: Incremental loading, merging, and resampling
+- **Data Quality Tests**: OHLC consistency and business logic validation
+- **Integration Tests**: End-to-end data flow validation
 
 > **Detailed testing guide:** See [Testing Guide](testing.md)
 

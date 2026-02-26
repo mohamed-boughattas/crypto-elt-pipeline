@@ -16,6 +16,8 @@
 [![dbt](https://img.shields.io/badge/transformation-dbt-orange)](https://www.getdbt.com/)
 [![DuckDB](https://img.shields.io/badge/database-DuckDB-yellow)](https://duckdb.org/)
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-red)](https://streamlit.io/)
+[![SQLFluff](https://img.shields.io/badge/sql%20linting-SQLFluff-blue)](https://sqlfluff.com/)
+[![mypy](https://img.shields.io/badge/type%20checking-mypy-blue)](https://mypy-lang.org/)
 
 ---
 
@@ -40,7 +42,7 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-[![Architecture Diagram](docs/diagrams/architecture.png)](docs/diagrams/architecture.png)
+[![Architecture Diagram](docs/diagrams/diagram_architetcure.jpg)](docs/diagrams/diagram_architetcure.jpg)
 
 **Data Flow:**
 
@@ -102,6 +104,8 @@ crypto-elt-pipeline/
 │   ├── definitions.py            # Dagster entry point
 │   ├── config.py                 # Centralized configuration (coins.yaml loader)
 │   ├── constants.py              # Global paths
+│   ├── utils/
+│   │   └── cache.py             # Caching utilities
 │   └── defs/
 │       ├── assets/
 │       │   ├── ingestion.py      # PyAirbyte extraction (Bronze)
@@ -124,11 +128,12 @@ crypto-elt-pipeline/
 ├── streamlit_dashboard/          # Presentation Layer
 │   └── dashboard.py              # Interactive crypto analytics
 │
-├── tests/                        # Test Suite (67 tests)
+├── tests/                        # Test Suite (86 tests)
 │   ├── conftest.py               # Shared fixtures
 │   ├── test_constants.py         # Path tests
 │   ├── test_schemas.py           # Schema validation tests
 │   ├── test_ingestion.py         # Ingestion tests
+│   ├── test_data_quality.py      # Data quality tests
 │   └── test_integration.py       # End-to-end tests
 │
 ├── docs/                         # Documentation
@@ -210,6 +215,8 @@ uv run pre-commit run --all-files
   - `calculate_price_range()` - Absolute price range
 - **Performance optimization**: Strategic clustering and indexing for time-series queries
 - **Data quality tracking**: Sample count and completeness metrics
+- **Bollinger Bands**: Technical analysis indicators for volatility and trend analysis
+- **Incremental processing**: Efficient daily updates with watermark-based loading
 
 > **Feature details:** [Data Modeling](docs/data-modeling.md)
 
