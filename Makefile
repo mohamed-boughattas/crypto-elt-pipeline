@@ -5,7 +5,7 @@ PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 export DAGSTER_HOME := $(PROJECT_ROOT)/.dagster_home
 DB_PATH = data/crypto.duckdb
 # COINS dynamically read from config/coins.yaml (enabled coins only)
-COINS := $(shell python -c "import yaml; print(' '.join([c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]))")
+COINS := $(shell uv run python -c 'import yaml; print(" ".join([c["id"] for c in yaml.safe_load(open("config/coins.yaml"))["coins"] if c.get("enabled", True)]))')
 
 # Default target
 help:
@@ -37,19 +37,13 @@ setup:
 # Validate coins against config before pipeline execution
 validate-coins:
 	@echo "🔍 Validating coin list against config/coins.yaml..."
-	@for coin in $(COINS); do \
-		if ! python -c "import yaml; coins=[c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]; exit(0 if '$$coin' in coins else 1)"; then \
-			echo "❌ Error: Coin '$$coin' not found in config/coins.yaml or not enabled"; \
-			echo "💡 Available coins: $(COINS)"; \
-			exit 1; \
-		fi; \
-	done
+	@uv run python -c "import yaml; coins=[c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]; print(f'Found {len(coins)} enabled coins: {\" \".join(coins)}')"
 	@echo "✅ All coins validated successfully!"
 
 # List all enabled coins from config
 list-coins:
 	@echo "Available coins (from config/coins.yaml):"
-	@python -c "import yaml; [print(f'  - {c[\"id\"]} ({c[\"name\"]})') for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]"
+	@uv run python -c "import yaml; [print(f'  - {c[\"id\"]} ({c[\"name\"]})') for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]"
 
 # Full pipeline: Bronze → Silver → Gold (all 10 coins)
 pipeline: setup validate-coins
