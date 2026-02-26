@@ -450,6 +450,9 @@ def fetch_coingecko_data(
                 # For other errors, just re-raise the original exception
                 raise
 
+        # This should never be reached - all paths inside the loop either return or raise
+        raise RuntimeError("Unexpected: _fetch_with_retry exhausted all retries without returning")
+
     # Execute fetch with retry logic
     return _fetch_with_retry()
 
@@ -670,7 +673,7 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     # 8. Observability: Attach summary stats to Dagster Asset
     new_records = new_df.height
     total_records = final_df.height
-    date_range = f"{final_df['recorded_at'].min()} to {final_df['recorded_at'].max()}"
+    date_range = f"{final_df['recorded_at'].min()!s} to {final_df['recorded_at'].max()!s}"
 
     preview_info = (
         f"| Column | Value |\n|--------|-------|\n"
