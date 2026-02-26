@@ -166,6 +166,7 @@ st.sidebar.markdown("**📊 Technical Indicators**")
 show_rsi = st.sidebar.checkbox("Show RSI", value=True)
 show_sma_crossover = st.sidebar.checkbox("Show SMA Crossover", value=True)
 show_volume_overlay = st.sidebar.checkbox("Show Volume Bars", value=True)
+show_bollinger_bands = st.sidebar.checkbox("Show Bollinger Bands", value=True)
 
 
 # --- TECHNICAL INDICATOR FUNCTIONS ---
@@ -334,7 +335,12 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
                 daily_volume,
                 volatility_pct,
                 sma_7,
-                sma_25
+                sma_25,
+                bb_middle,
+                bb_upper,
+                bb_lower,
+                bb_width,
+                bb_position
             FROM mart.fct_crypto_candlesticks
             WHERE coin = $1
             AND trade_date >= $2
@@ -480,7 +486,7 @@ with col4:
 with col5:
     st.metric("🔥 Volatility", f"{latest['volatility_pct']:.2f}%")
 
-# RSI indicator in KPI row
+    # RSI indicator in KPI row
 if show_rsi and "rsi" in df.columns:
     rsi_value = latest.get("rsi")
     if rsi_value is not None:
@@ -488,6 +494,25 @@ if show_rsi and "rsi" in df.columns:
         rsi_color = "#ef4444" if rsi_value > 70 else "#22c55e" if rsi_value < 30 else "#888888"
         st.markdown(
             f"<span style='color:{rsi_color}; font-weight:bold;'>RSI: {rsi_value:.1f} ({rsi_status})</span>",
+            unsafe_allow_html=True,
+        )
+
+# Bollinger Bands indicator in KPI row
+if show_bollinger_bands and "bb_width" in df.columns:
+    bb_width_value = latest.get("bb_width")
+    if bb_width_value is not None:
+        bb_status = (
+            "High Volatility"
+            if bb_width_value > 10
+            else "Low Volatility"
+            if bb_width_value < 3
+            else "Normal Volatility"
+        )
+        bb_color = (
+            "#ef4444" if bb_width_value > 10 else "#22c55e" if bb_width_value < 3 else "#888888"
+        )
+        st.markdown(
+            f"<span style='color:{bb_color}; font-weight:bold;'>BB Width: {bb_width_value:.2f}% ({bb_status})</span>",
             unsafe_allow_html=True,
         )
 
@@ -680,6 +705,53 @@ if num_rows > 1:
             col=1,
         )
 
+    # Bollinger Bands overlay
+    if show_bollinger_bands and "bb_upper" in df_plot.columns and "bb_lower" in df_plot.columns:
+        # Upper band
+        fig.add_trace(
+            go.Scatter(
+                x=df_plot["trade_date"],
+                y=df_plot["bb_upper"],
+                mode="lines",
+                name="BB Upper",
+                line={"color": "#FF6B6B", "width": 1, "dash": "dot"},
+                showlegend=True,
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Lower band
+        fig.add_trace(
+            go.Scatter(
+                x=df_plot["trade_date"],
+                y=df_plot["bb_lower"],
+                mode="lines",
+                name="BB Lower",
+                line={"color": "#FF6B6B", "width": 1, "dash": "dot"},
+                showlegend=True,
+                fill="tonexty",  # Fill between upper and lower bands
+                fillcolor="rgba(255, 107, 107, 0.1)",  # Light red fill
+            ),
+            row=1,
+            col=1,
+        )
+
+        # Middle band (20-day SMA)
+        if "bb_middle" in df_plot.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=df_plot["trade_date"],
+                    y=df_plot["bb_middle"],
+                    mode="lines",
+                    name="BB Middle (20 SMA)",
+                    line={"color": "#4ECDC4", "width": 2},
+                    showlegend=True,
+                ),
+                row=1,
+                col=1,
+            )
+
     current_row = 2
 
     # Volume bars
@@ -786,11 +858,13 @@ else:
 st.plotly_chart(fig, width="stretch")
 
 # Legend Helper
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 c1.markdown("🟢 **Bullish** (Close > Open)")
 c2.markdown("🔴 **Bearish** (Close < Open)")
 if show_ma:
     c3.markdown("🟠 **Trend line**")
+if show_bollinger_bands:
+    c4.markdown("🔵 **Bollinger Bands**")
 
 st.markdown("---")
 
