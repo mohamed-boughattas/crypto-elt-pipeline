@@ -29,6 +29,7 @@ from crypto_elt_pipeline.constants import DUCKDB_PATH
 # Optional CoinGecko API key for Pro API access (higher rate limits)
 COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY")
 
+
 # ------------------------------------------------------------------
 # Data Contracts (Pandera) - Enhanced with Business Logic
 # ------------------------------------------------------------------
@@ -332,7 +333,10 @@ def fetch_coingecko_data(
                 days_str = allowed
                 break
 
-    context.log.info(f"Fetching {coin_id} data (Last {days_str} complete days)...")
+    # Add visual formatting to make cryptocurrency processing more distinct
+    context.log.info(f"{'=' * 60}")
+    context.log.info(f"🔄 Processing {coin_id.upper()} data")
+    context.log.info(f"{'=' * 60}")
     context.log.debug(f"Date range: {start_date} to {end_date} (excluding today)")
 
     # Log API key status
@@ -387,6 +391,9 @@ def fetch_coingecko_data(
                 execution_time = time.time() - start_time
                 error_msg = str(e).lower()
 
+                # Log the full error for debugging
+                context.log.error(f"Airbyte connector error for {coin_id}: {str(e)}")
+
                 # Check for rate limit specific errors
                 if any(
                     rate_limit_indicator in error_msg
@@ -413,13 +420,12 @@ def fetch_coingecko_data(
                         continue
                     else:
                         # Final attempt failed due to rate limit
-                        raise RateLimitError(
-                            f"Rate limit exceeded for {coin_id} after {max_retries} retries. "
-                            f"Please try again later or reduce the frequency of requests."
-                        ) from e
+                        context.log.error(
+                            f"❌ Failed to fetch data for {coin_id}: Rate limit exceeded."
+                        )
+                        raise
 
-                # For non-rate-limit errors, log and re-raise immediately
-                context.log.error(f"❌ Failed to fetch data after {execution_time:.2f}s: {e}")
+                # For other errors, just re-raise the original exception
                 raise
 
     # Execute fetch with retry logic
@@ -588,14 +594,15 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
 
     if latest_timestamp is not None:
         days_to_fetch = calculate_days_to_fetch(latest_timestamp, default_days)
+        context.log.info(f"📊 Incremental loading for {coin_id.upper()}")
         context.log.info(
-            f"📅 Existing data found for {coin_id}. "
-            f"Latest: {latest_timestamp}. Fetching {days_to_fetch} day(s) of new data."
+            f"📅 Existing data found. Latest: {latest_timestamp}. Fetching {days_to_fetch} day(s) of new data."
         )
         existing_df = get_existing_data(coin_id)
     else:
         days_to_fetch = default_days
-        context.log.info(f"🆕 No existing data for {coin_id}. Fetching {days_to_fetch} days.")
+        context.log.info(f"🆕 Initial load for {coin_id.upper()}")
+        context.log.info(f"Fetching {days_to_fetch} days of historical data.")
 
     # 2. Extraction: Fetch raw nested data via PyAirbyte
     raw_df = fetch_coingecko_data(coin_id, vs_currency, days_to_fetch, context)
