@@ -14,6 +14,6 @@ streamlit_dashboard = dg.AssetSpec(
     group_name="Dashboards",
     kinds={"python"},
     description="Streamlit UI for crypto market analysis",
-    deps=dg.AssetKey(["mart", "fct_crypto_candlesticks"]),  # Name of Gold dbt model
+    deps=[dg.AssetKey(["mart", "fct_crypto_candlesticks"])],  # Name of Gold dbt model
     metadata={"url": "http://localhost:8501"},
 )
