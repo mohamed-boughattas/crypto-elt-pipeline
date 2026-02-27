@@ -105,7 +105,10 @@ crypto-elt-pipeline/
 │   ├── config.py                 # Centralized configuration (coins.yaml loader)
 │   ├── constants.py              # Global paths
 │   ├── utils/
-│   │   └── cache.py             # Caching utilities
+│   │   ├── cache.py             # Caching utilities
+│   │   ├── crypto_api.py        # CoinGecko API client with retry logic
+│   │   ├── crypto_db.py         # Database utilities for DuckDB operations
+│   │   └── crypto_transform.py  # Data transformation utilities
 │   └── defs/
 │       ├── assets/
 │       │   ├── ingestion.py      # PyAirbyte extraction (Bronze)
@@ -120,9 +123,17 @@ crypto-elt-pipeline/
 ├── dbt_project/                  # Transformation Layer (Medallion)
 │   ├── models/
 │   │   ├── staging/              # Silver Layer
+│   │   │   ├── stg_crypto_prices.sql
+│   │   │   └── staging.yml       # Data quality tests & documentation
 │   │   └── marts/                # Gold Layer
+│   │       ├── fct_crypto_candlesticks.sql
+│   │       └── marts.yml         # OHLC validation & business logic
 │   ├── macros/
 │   │   └── financial_calculations.sql  # Reusable financial macros
+│   ├── tests/                    # dbt test files
+│   ├── seeds/                    # dbt seed files
+│   ├── logs/                     # dbt execution logs
+│   ├── target/                   # dbt compiled artifacts
 │   └── dbt_project.yml
 │
 ├── streamlit_dashboard/          # Presentation Layer
