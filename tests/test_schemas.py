@@ -179,8 +179,8 @@ class TestEnhancedMarketSchema:
         with pytest.raises(SchemaError):
             EnhancedMarketSchema.validate(df)
 
-    def test_zero_volume_fails(self):
-        """Verify zero volume fails business logic validation."""
+    def test_zero_volume_passes(self):
+        """Verify zero volume passes business logic validation (allowed in real markets)."""
         df = pl.DataFrame(
             {
                 "coin": ["bitcoin"],
@@ -189,11 +189,12 @@ class TestEnhancedMarketSchema:
                 "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
                 "price": [45000.50],
                 "market_cap": [850000000000.0],
-                "volume": [0.0],  # Zero volume should fail
+                "volume": [0.0],  # Zero volume should pass (allowed in real markets)
             }
         )
-        with pytest.raises(SchemaError):
-            EnhancedMarketSchema.validate(df)
+        validated = EnhancedMarketSchema.validate(df)
+        assert validated is not None
+        assert validated["volume"][0] == 0.0
 
     def test_extra_columns_allowed(self):
         """Verify extra columns are allowed (strict=False)."""
