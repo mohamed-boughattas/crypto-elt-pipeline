@@ -24,14 +24,20 @@ from plotly.subplots import make_subplots
 
 from crypto_elt_pipeline.config import get_config
 
+# --- CUSTOM EXCEPTIONS ---
+
+
+class DataError(Exception):
+    """Custom exception for data-related errors with user-friendly messages."""
+
+    pass
+
+
 # --- DASHBOARD PARAMETERS ---
 CACHE_TTL = 3600  # Cache data for 1 hour
 DEFAULT_DAYS = 30  # Historical lookback period
 MA_PERIOD = 7  # Moving Average window (days)
 RSI_PERIOD = 14  # RSI calculation period
-
-# Coin branding colors (loaded from centralized config)
-COIN_COLORS = get_config().coin_colors
 
 # --- PAGE SETTINGS ---
 st.set_page_config(
@@ -103,19 +109,51 @@ def get_theme_styles() -> str:
 
 
 # --- DATA INFRASTRUCTURE ---
-@st.cache_resource
-def get_connection() -> duckdb.DuckDBPyConnection:
-    """Establishes a cached, read-only connection to the DuckDB warehouse."""
+
+
+def get_db_path() -> Path:
+    """Get the path to the DuckDB database."""
     project_root = Path(__file__).resolve().parent.parent
-    db_path = project_root / "data" / "crypto.duckdb"
+    return project_root / "data" / "crypto.duckdb"
+
+
+def check_database_exists() -> bool:
+    """Check if the database exists and is accessible.
+
+    Returns True if the database exists, False otherwise.
+    This function is NOT cached to allow recovery after DB is created.
+    """
+    db_path = get_db_path()
 
     if not db_path.exists():
         st.error(f"❌ Database not found at: {db_path}")
         st.info("💡 Generate data first: `make pipeline`")
+        return False
+
+    return True
+
+
+@st.cache_resource
+def _create_connection() -> duckdb.DuckDBPyConnection:
+    """Creates a cached, read-only connection to the DuckDB warehouse.
+
+    This function only creates the connection - error handling is done
+    separately to avoid caching exceptions in the cached resource.
+    """
+    db_path = get_db_path()
+    return duckdb.connect(str(db_path), read_only=True)
+
+
+def get_connection() -> duckdb.DuckDBPyConnection:
+    """Get a connection to the DuckDB database.
+
+    Performs existence check before attempting to connect.
+    """
+    if not check_database_exists():
         st.stop()
 
     try:
-        return duckdb.connect(str(db_path), read_only=True)
+        return _create_connection()
     except Exception as e:
         st.error(f"❌ Database connection failed: {e}")
         st.stop()
@@ -139,6 +177,15 @@ def get_available_coins() -> list:
 
 
 AVAILABLE_COINS = get_available_coins()
+
+
+@st.cache_data(ttl=CACHE_TTL)
+def get_coin_colors() -> dict[str, str]:
+    """Get coin colors from configuration."""
+    return get_config().coin_colors
+
+
+COIN_COLORS = get_coin_colors()
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("⚙️ Dashboard Controls")
@@ -268,6 +315,11 @@ def calculate_max_drawdown(prices: pl.Series) -> float:
 
     # Calculate running maximum
     running_max = prices.cum_max()
+
+    # Guard against zero running_max (bad data edge case)
+    if running_max.min() <= 0:
+        return 0.0
+
     # Calculate drawdown at each point
     drawdown = (running_max - prices) / running_max * 100
     # Return maximum drawdown
@@ -377,12 +429,6 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
             f"Unable to load data for {coin.upper()}. "
             "Please check if the pipeline has been run and the database exists."
         ) from e
-
-
-class DataError(Exception):
-    """Custom exception for data-related errors with user-friendly messages."""
-
-    pass
 
 
 # --- APP HEADER ---
