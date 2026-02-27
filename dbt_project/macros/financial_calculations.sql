@@ -95,8 +95,25 @@
   ({{ high_price }} - {{ low_price }})
 {% endmacro %}
 
+{#  Helper macro to compute Bollinger Band statistics once
+  #  This avoids recalculating avg and stddev multiple times
+  #
+  #  Returns a struct with: middle, upper, lower, std_dev
+  #  Use this with dbt's built-in struct functions
+ #}
+
+{% macro _bollinger_band_stats(column_name, window_size=20) %}
+  (
+    -- Calculate middle band (SMA)
+    avg({{ column_name }}) over (
+      partition by coin order by trade_date
+      rows between {{ window_size - 1 }} preceding and current row
+    )
+  )
+{% endmacro %}
+
 {% macro calculate_bollinger_band_middle(column_name, window_size=20) %}
-  {#
+  {#|
     Calculate Bollinger Band middle band (Simple Moving Average).
 
     Formula: SMA of closing prices over specified window
@@ -111,14 +128,11 @@
       {{ calculate_bollinger_band_middle('close_price', 20) }}
   #}
 
-  avg({{ column_name }}) over (
-    partition by coin order by trade_date
-    rows between {{ window_size - 1 }} preceding and current row
-  )
+    {{ _bollinger_band_stats(column_name, window_size) }}
 {% endmacro %}
 
 {% macro calculate_bollinger_band_upper(column_name, window_size=20, std_dev=2) %}
-  {#
+  {#|
     Calculate Bollinger Band upper band.
 
     Formula: Middle Band + (Standard Deviation × Multiplier)
@@ -134,10 +148,7 @@
       {{ calculate_bollinger_band_upper('close_price', 20, 2) }}
   #}
 
-  avg({{ column_name }}) over (
-    partition by coin order by trade_date
-    rows between {{ window_size - 1 }} preceding and current row
-  ) + (
+{{ _bollinger_band_stats(column_name, window_size) }} + (
     {{ std_dev }} * stddev({{ column_name }}) over (
       partition by coin order by trade_date
       rows between {{ window_size - 1 }} preceding and current row
@@ -146,7 +157,7 @@
 {% endmacro %}
 
 {% macro calculate_bollinger_band_lower(column_name, window_size=20, std_dev=2) %}
-  {#
+  {#|
     Calculate Bollinger Band lower band.
 
     Formula: Middle Band - (Standard Deviation × Multiplier)
@@ -162,10 +173,7 @@
       {{ calculate_bollinger_band_lower('close_price', 20, 2) }}
   #}
 
-  avg({{ column_name }}) over (
-    partition by coin order by trade_date
-    rows between {{ window_size - 1 }} preceding and current row
-  ) - (
+{{ _bollinger_band_stats(column_name, window_size) }} - (
     {{ std_dev }} * stddev({{ column_name }}) over (
       partition by coin order by trade_date
       rows between {{ window_size - 1 }} preceding and current row
@@ -174,7 +182,7 @@
 {% endmacro %}
 
 {% macro calculate_bollinger_band_width(column_name, window_size=20, std_dev=2) %}
-  {#
+  {#|
     Calculate Bollinger Band width (volatility indicator).
 
     Formula: (Upper Band - Lower Band) / Middle Band
@@ -190,36 +198,18 @@
       {{ calculate_bollinger_band_width('close_price', 20, 2) }}
   #}
 
+  -- Width = (Upper - Lower) / Middle * 100
+  -- Simplified: (2 * std_dev * stddev) / middle * 100
   (
-    (
-      avg({{ column_name }}) over (
-        partition by coin order by trade_date
-        rows between {{ window_size - 1 }} preceding and current row
-      ) + (
-        {{ std_dev }} * stddev({{ column_name }}) over (
-          partition by coin order by trade_date
-          rows between {{ window_size - 1 }} preceding and current row
-        )
-      )
-    ) - (
-      avg({{ column_name }}) over (
-        partition by coin order by trade_date
-        rows between {{ window_size - 1 }} preceding and current row
-      ) - (
-        {{ std_dev }} * stddev({{ column_name }}) over (
-          partition by coin order by trade_date
-          rows between {{ window_size - 1 }} preceding and current row
-        )
-      )
+    2 * {{ std_dev }} * stddev({{ column_name }}) over (
+      partition by coin order by trade_date
+      rows between {{ window_size - 1 }} preceding and current row
     )
-  ) / avg({{ column_name }}) over (
-    partition by coin order by trade_date
-    rows between {{ window_size - 1 }} preceding and current row
-  ) * 100
+  ) / nullif({{ _bollinger_band_stats(column_name, window_size) }}, 0) * 100
 {% endmacro %}
 
 {% macro calculate_bollinger_band_position(column_name, window_size=20, std_dev=2) %}
-  {#
+  {#|
     Calculate price position relative to Bollinger Bands.
 
     Formula: (Price - Lower Band) / (Upper Band - Lower Band)
@@ -235,40 +225,23 @@
       {{ calculate_bollinger_band_position('close_price', 20, 2) }}
   #}
 
+  -- Position = (Price - Lower) / (Upper - Lower)
+  -- Simplified: (Price - (Middle - k*StdDev)) / (2 * k * StdDev)
   (
     {{ column_name }} - (
-      avg({{ column_name }}) over (
-        partition by coin order by trade_date
-        rows between {{ window_size - 1 }} preceding and current row
-      ) - (
+      {{ _bollinger_band_stats(column_name, window_size) }} - (
         {{ std_dev }} * stddev({{ column_name }}) over (
           partition by coin order by trade_date
           rows between {{ window_size - 1 }} preceding and current row
         )
       )
     )
-  ) / (
-    (
-      avg({{ column_name }}) over (
-        partition by coin order by trade_date
-        rows between {{ window_size - 1 }} preceding and current row
-      ) + (
-        {{ std_dev }} * stddev({{ column_name }}) over (
-          partition by coin order by trade_date
-          rows between {{ window_size - 1 }} preceding and current row
-        )
-      )
-    ) - (
-      avg({{ column_name }}) over (
-        partition by coin order by trade_date
-        rows between {{ window_size - 1 }} preceding and current row
-      ) - (
-        {{ std_dev }} * stddev({{ column_name }}) over (
-          partition by coin order by trade_date
-          rows between {{ window_size - 1 }} preceding and current row
-        )
-      )
-    )
+  ) / nullif(
+    2 * {{ std_dev }} * stddev({{ column_name }}) over (
+      partition by coin order by trade_date
+      rows between {{ window_size - 1 }} preceding and current row
+    ),
+    0
   )
 {% endmacro %}
 

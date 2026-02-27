@@ -104,3 +104,6 @@ select
     market_cap,
     volume
 from deduped
+
+-- Order by for optimal incremental processing
+order by coin, recorded_at
