@@ -1,4 +1,4 @@
-.PHONY: help setup start pipeline pipeline-coin dev dashboard test test-cov lint lint-dbt lint-dbt-fix clean deep-clean
+.PHONY: help setup start pipeline pipeline-coin dev dashboard test test-cov lint lint-dbt lint-dbt-fix clean deep-clean status
 
 # Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -11,20 +11,30 @@ COINS := $(shell uv run python -c 'import yaml; print(" ".join([c["id"] for c in
 help:
 	@echo "Crypto Analysis Pipeline"
 	@echo ""
-	@echo "  make start     → Setup + Pipeline + Dashboard"
-	@echo "  make setup     → Install dependencies and create directories"
-	@echo "  make pipeline  → Run data pipeline (all enabled coins)"
+	@echo "Quick Start:"
+	@echo "  make start     → Setup + Pipeline + Dashboard (one command!)"
+	@echo ""
+	@echo "Pipeline Operations:"
+	@echo "  make pipeline  → Run data pipeline (all enabled coins, ~15-20 min)"
 	@echo "  make coin=bitcoin pipeline-coin → Run pipeline for specific coin"
+	@echo "  make status    → Quick health check without opening Dagster UI"
+	@echo ""
+	@echo "Development:"
 	@echo "  make dev       → Launch Dagster development server"
 	@echo "  make dashboard → Launch Streamlit Dashboard"
+	@echo ""
+	@echo "Testing & Quality:"
 	@echo "  make test      → Run tests"
 	@echo "  make test-cov  → Run tests with coverage report"
 	@echo "  make lint      → Run linting and format checks"
 	@echo "  make lint-dbt  → Lint dbt models with SQLFluff"
 	@echo "  make lint-dbt-fix → Fix dbt linting issues"
+	@echo ""
+	@echo "Maintenance:"
 	@echo "  make clean     → Clean database and dbt target (preserves history)"
 	@echo "  make deep-clean → Full clean including .venv and .dagster_home"
 	@echo ""
+	@echo "Utilities:"
 	@echo "  make list-coins    → Show all enabled coins from config"
 	@echo "  make validate-coins → Validate coin list against config"
 
@@ -48,11 +58,10 @@ list-coins:
 # Full pipeline: Bronze → Silver → Gold (all 10 coins)
 pipeline: setup validate-coins
 	@docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
-	@echo "⚡ Running pipeline (all enabled coins)..."
+	@echo "⚡ Running pipeline..."
 	@echo ""
 	@echo "📦 Bronze Layer: Ingesting raw data..."
 	@for coin in $(COINS); do \
-		echo "  Processing $$coin..."; \
 		uv run dg launch --assets 'raw/crypto_prices' --partition $$coin || exit 1; \
 	done
 	@echo ""
@@ -122,5 +131,28 @@ deep-clean:
 	@rm -rf data/*.duckdb data/*.duckdb.wal .dagster_home dbt_project/target .venv
 	@rm -rf source-* /tmp/airbyte
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+# Pipeline status - quick health check without opening Dagster UI
+status:
+	@echo "📊 Pipeline Status"
+	@echo ""
+	@if [ -f $(DB_PATH) ]; then \
+		db_size=$$(du -h $(DB_PATH) | cut -f1); \
+		echo "✅ Database exists: $(DB_PATH)"; \
+		echo "📦 Database size: $$db_size"; \
+		echo ""; \
+		if command -v duckdb >/dev/null 2>&1; then \
+			echo "📈 Record counts (Bronze Layer):"; \
+			uv run python -c "import duckdb; conn = duckdb.connect('$(DB_PATH)', read_only=True); coins = conn.execute('SELECT DISTINCT coin FROM raw.crypto_prices ORDER BY coin').fetchall(); [print(f'  - {coin[0]}: {conn.execute(\"SELECT COUNT(*) FROM raw.crypto_prices WHERE coin = '\" + coin[0] + \"'\").fetchone()[0]:,} records') for coin in coins]"; \
+			echo ""; \
+			echo "📊 Latest data per coin:"; \
+			uv run python -c "import duckdb, pendulum; conn = duckdb.connect('$(DB_PATH)', read_only=True); coins = conn.execute('SELECT DISTINCT coin FROM raw.crypto_prices ORDER BY coin').fetchall(); now = pendulum.now('UTC'); [print(f'  - {coin[0]}: {conn.execute(\"SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = '\" + coin[0] + \"'\").fetchone()[0]} (age: {(now - pendulum.instance(conn.execute(\"SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = '\" + coin[0] + \"'\").fetchone()[0])).in_words()})') for coin in coins]"; \
+		else \
+			echo "⚠️  duckdb CLI not installed. Install with: brew install duckdb"; \
+		fi; \
+	else \
+		echo "❌ Database not found: $(DB_PATH)"; \
+		echo "💡 Run 'make pipeline' to create the database"; \
+	fi
 
 .DEFAULT_GOAL := help
