@@ -8,10 +8,11 @@ This module implements data quality gates that ensure:
 - Performance and reliability metrics
 """
 
+import pandera as pa
 import pendulum
 import polars as pl
 
-from crypto_elt_pipeline.defs.assets.ingestion import (
+from crypto_elt_pipeline.utils.crypto_transform import (
     EnhancedMarketSchema,
     RawMarketChartSchema,
     unnest_market_data,
@@ -220,12 +221,7 @@ class TestSchemaValidation:
         )
 
         # Should pass validation
-        try:
-            RawMarketChartSchema.validate(valid_raw_df)
-            validation_passed = True
-        except Exception:
-            validation_passed = False
-        assert validation_passed
+        RawMarketChartSchema.validate(valid_raw_df)
 
         # Invalid raw data - missing prices
         invalid_raw_df = pl.DataFrame(
@@ -241,12 +237,10 @@ class TestSchemaValidation:
         )
 
         # Should fail validation
-        try:
+        import pytest
+
+        with pytest.raises(pa.errors.SchemaError):
             RawMarketChartSchema.validate(invalid_raw_df)
-            validation_passed = True
-        except Exception:
-            validation_passed = False
-        assert not validation_passed
 
     def test_enhanced_schema_validation(self):
         """Test validation of flattened market data."""

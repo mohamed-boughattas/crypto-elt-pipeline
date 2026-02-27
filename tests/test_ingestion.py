@@ -4,10 +4,9 @@ import pendulum
 import polars as pl
 
 from crypto_elt_pipeline.config import get_config
-from crypto_elt_pipeline.defs.assets.ingestion import (
-    CRYPTO_PARTITIONS,
-    IngestionConfig,
-    calculate_days_to_fetch,
+from crypto_elt_pipeline.defs.assets.ingestion import CRYPTO_PARTITIONS, IngestionConfig
+from crypto_elt_pipeline.utils.crypto_db import calculate_days_to_fetch
+from crypto_elt_pipeline.utils.crypto_transform import (
     merge_data,
     resample_to_hourly,
 )

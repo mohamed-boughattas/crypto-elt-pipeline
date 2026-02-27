@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 from pandera.errors import SchemaError
 
-from crypto_elt_pipeline.defs.assets.ingestion import (
+from crypto_elt_pipeline.utils.crypto_transform import (
     EnhancedMarketSchema,
     RawMarketChartSchema,
 )
