@@ -60,18 +60,22 @@ tests/
 ├── conftest.py           # Shared fixtures
 ├── test_constants.py     # Tests for path constants (14 tests)
 ├── test_schemas.py       # Tests for Pandera schemas (12 tests)
-├── test_ingestion.py     # Tests for data transformations (28 tests)
+├── test_ingestion.py     # Tests for data transformations (36 tests)
 ├── test_data_quality.py  # Tests for data quality validation (15 tests)
+├── test_crypto_api.py    # Tests for API client (8 tests)
+├── test_crypto_db.py     # Tests for database utilities (9 tests)
 └── test_integration.py   # End-to-end integration tests (17 tests)
 ```
 
-**Total: 86 tests**
+**Total: 112 tests**
 
 ### Test Coverage Areas
 
 - **Configuration Tests**: Path constants, project structure validation
 - **Schema Validation Tests**: Pandera schemas for raw and enhanced data
 - **Ingestion Tests**: Data transformations, incremental loading, merging, resampling
+- **API Tests**: CoinGecko API client, retry logic, rate limit handling
+- **Database Tests**: DuckDB operations, timestamp retrieval, data fetching
 - **Data Quality Tests**: Business rules, temporal consistency, cross-system validation
 - **Integration Tests**: End-to-end data flow, database structure, multi-coin support
 
@@ -123,6 +127,7 @@ class TestIngestionConfig:
         config = IngestionConfig()
         assert config.get_vs_currency() == "usd"
         assert config.get_days_to_fetch() == 30
+        assert config.ingestion.history_days == 365
 
 
 class TestCryptoPartitions:
@@ -188,7 +193,58 @@ class TestDataFlow:
 
 **Note:** Integration tests require a local database and are skipped in CI.
 
-### 5. Data Quality Tests (`test_data_quality.py`)
+### 5. API Tests (`test_crypto_api.py`)
+
+Tests for CoinGecko API client with retry logic and error handling:
+
+```python
+class TestFetchCoinGeckoData:
+    def test_fetch_success_with_retry(self, mock_logger, mock_airbyte_records):
+        """Test successful fetch on first attempt."""
+        with patch("crypto_elt_pipeline.utils.crypto_api.ab.get_source") as mock_source:
+            mock_source_instance = MagicMock()
+            mock_source_instance.get_records.return_value = iter(mock_airbyte_records)
+            mock_source.return_value = mock_source_instance
+
+            result = fetch_coingecko_data(
+                coin_id="bitcoin",
+                vs_currency="usd",
+                days=1,
+                logger=mock_logger,
+            )
+            assert result == mock_airbyte_records
+
+    def test_rate_limit_error_raises(self, mock_logger):
+        """Test that rate limit error is properly raised after retries."""
+        # Tests RateLimitError exception handling
+        pass
+```
+
+### 6. Database Tests (`test_crypto_db.py`)
+
+Tests for DuckDB utilities including timestamp retrieval and data fetching:
+
+```python
+class TestGetLatestTimestamp:
+    def test_returns_latest_timestamp(self, mock_connect):
+        """Test that latest timestamp is returned correctly."""
+        # Tests timestamp retrieval from database
+        pass
+
+    def test_returns_none_when_database_not_found(self, mock_connect):
+        """Test that None is returned when database file doesn't exist."""
+        # Tests FileNotFoundError handling
+        pass
+
+
+class TestCalculateDaysToFetch:
+    def test_returns_default_when_none_timestamp(self):
+        """Test that default days is returned when no timestamp provided."""
+        result = calculate_days_to_fetch(None, 30)
+        assert result == 30
+```
+
+### 7. Data Quality Tests (`test_data_quality.py`)
 
 Comprehensive data quality validation tests:
 

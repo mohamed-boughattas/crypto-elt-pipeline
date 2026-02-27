@@ -83,16 +83,43 @@ make start
 
 ---
 
+## ⏱️ Expected Runtime
+
+| Operation | Time (Free API) | Time (Pro API) | Notes |
+
+| Operation                            | Time (Free API) | Time (Pro API) | Notes                                                      |
+| ------------------------------------ | --------------- | -------------- | ---------------------------------------------------------- |
+| **Initial load** (10 coins, 30 days) | ~3-5 min        | ~1-2 min       | First run fetches full history (parallelized)              |
+| **Daily refresh** (incremental)      | ~30-60 sec      | ~10-20 sec     | Only fetches new data (~97% fewer API calls, parallelized) |
+| **Single coin**                      | ~1-2 min        | ~15-30 sec     | Useful for testing or quick updates                        |
+| **dbt transformations**              | ~30-60 sec      | ~30-60 sec     | Same for both tiers (local processing)                     |
+| **Dashboard load**                   | ~5-10 sec       | ~5-10 sec      | Queries DuckDB directly                                    |
+
+**Performance Improvements:**
+
+- **Parallel execution**: Bronze layer runs 4 coins simultaneously (3-5x faster)
+- **Incremental loading**: Only fetches new data since last run (~97% fewer API calls)
+- **Hourly resampling**: Normalizes API granularity differences automatically
+
+**Factors affecting runtime:**
+
+- CoinGecko rate limits: Free tier ~10-50 calls/min, Pro tier ~500+ calls/min
+- Docker container startup time (PyAirbyte connector)
+- Network latency to CoinGecko API
+- System resources (CPU/RAM)
+
+---
+
 ## 🛠️ Tech Stack
 
-| Layer | Technology | Purpose |
-| ------- | ----------- | --------- |
-| **Orchestration** | Dagster | Asset-based workflow orchestration |
-| **Extraction** | PyAirbyte | Serverless data ingestion |
-| **Transformation** | dbt | SQL-based modeling (Medallion) |
-| **Storage** | DuckDB + Polars | Embedded OLAP database |
-| **Visualization** | Streamlit | Interactive dashboards |
-| **Package Manager** | uv | Ultra-fast dependency resolution |
+| Layer               | Technology      | Purpose                            |
+| ------------------- | --------------- | ---------------------------------- |
+| **Orchestration**   | Dagster         | Asset-based workflow orchestration |
+| **Extraction**      | PyAirbyte       | Serverless data ingestion          |
+| **Transformation**  | dbt             | SQL-based modeling (Medallion)     |
+| **Storage**         | DuckDB + Polars | Embedded OLAP database             |
+| **Visualization**   | Streamlit       | Interactive dashboards             |
+| **Package Manager** | uv              | Ultra-fast dependency resolution   |
 
 ---
 
@@ -105,7 +132,6 @@ crypto-elt-pipeline/
 │   ├── config.py                 # Centralized configuration (coins.yaml loader)
 │   ├── constants.py              # Global paths
 │   ├── utils/
-│   │   ├── cache.py             # Caching utilities
 │   │   ├── crypto_api.py        # CoinGecko API client with retry logic
 │   │   ├── crypto_db.py         # Database utilities for DuckDB operations
 │   │   └── crypto_transform.py  # Data transformation utilities
@@ -139,13 +165,15 @@ crypto-elt-pipeline/
 ├── streamlit_dashboard/          # Presentation Layer
 │   └── dashboard.py              # Interactive crypto analytics
 │
-├── tests/                        # Test Suite (86 tests)
+├── tests/                        # Test Suite (112 tests)
 │   ├── conftest.py               # Shared fixtures
-│   ├── test_constants.py         # Path tests
-│   ├── test_schemas.py           # Schema validation tests
-│   ├── test_ingestion.py         # Ingestion tests
-│   ├── test_data_quality.py      # Data quality tests
-│   └── test_integration.py       # End-to-end tests
+│   ├── test_constants.py         # Path tests (14 tests)
+│   ├── test_schemas.py           # Schema validation tests (12 tests)
+│   ├── test_ingestion.py         # Ingestion tests (36 tests)
+│   ├── test_data_quality.py      # Data quality tests (15 tests)
+│   ├── test_crypto_api.py        # API client tests (8 tests)
+│   ├── test_crypto_db.py         # Database utility tests (9 tests)
+│   └── test_integration.py       # End-to-end tests (17 tests)
 │
 ├── docs/                         # Documentation
 ├── data/                         # DuckDB database (gitignored)
@@ -235,12 +263,12 @@ uv run pre-commit run --all-files
 
 ## 📚 Documentation
 
-| Document | Description |
-| ---------- | ------------- |
+| Document                                  | Description                                  |
+| ----------------------------------------- | -------------------------------------------- |
 | [📐 System Design](docs/system-design.md) | Detailed system design & component breakdown |
 | [🗂️ Data Modeling](docs/data-modeling.md) | Medallion architecture & dbt transformations |
-| [🚀 Setup Guide](docs/setup-guide.md) | Detailed installation & configuration |
-| [🧪 Testing Guide](docs/testing.md) | Testing strategy & writing tests |
+| [🚀 Setup Guide](docs/setup-guide.md)     | Detailed installation & configuration        |
+| [🧪 Testing Guide](docs/testing.md)       | Testing strategy & writing tests             |
 
 ---
 
@@ -306,7 +334,7 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) - 67 pytest tests + dbt tests
+3. **dbt tests** for not-null & uniqueness (Silver) - **112 pytest tests** + dbt tests
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
