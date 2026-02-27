@@ -31,6 +31,7 @@ class ApiConfig:
     source: str
     connector: str
     base_url: str
+    docker_image: str = "airbyte/source-coingecko-coins:0.2.26"
 
 
 @dataclass
@@ -39,6 +40,7 @@ class IngestionConfig:
 
     vs_currency: str
     days_to_fetch: int
+    history_days: int
     retry_max_attempts: int
     retry_base_delay: int
     retry_max_delay: int
@@ -110,6 +112,7 @@ def load_config() -> PipelineConfig:
         source=api_data.get("source", "coingecko"),
         connector=api_data.get("connector", "source-coingecko-coins"),
         base_url=api_data.get("base_url", "https://api.coingecko.com/api/v3"),
+        docker_image=api_data.get("docker_image", "airbyte/source-coingecko-coins:0.2.26"),
     )
 
     # Parse ingestion config
@@ -117,6 +120,7 @@ def load_config() -> PipelineConfig:
     ingestion = IngestionConfig(
         vs_currency=ingestion_data.get("vs_currency", "usd"),
         days_to_fetch=ingestion_data.get("days_to_fetch", 30),
+        history_days=ingestion_data.get("history_days", 365),
         retry_max_attempts=ingestion_data.get("retry_max_attempts", 3),
         retry_base_delay=ingestion_data.get("retry_base_delay", 10),
         retry_max_delay=ingestion_data.get("retry_max_delay", 60),
