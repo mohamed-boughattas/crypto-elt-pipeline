@@ -9,6 +9,7 @@ import duckdb
 import pendulum
 import polars as pl
 
+from crypto_elt_pipeline.config import get_config
 from crypto_elt_pipeline.constants import DUCKDB_PATH
 
 
@@ -61,7 +62,9 @@ def get_existing_data(coin_id: str) -> pl.DataFrame:
 
     try:
         # Calculate the date filter to avoid loading unbounded history
-        cutoff_date = pendulum.now("UTC").subtract(days=365)
+        # Use configurable history_days from config instead of hardcoded 365
+        config = get_config()
+        cutoff_date = pendulum.now("UTC").subtract(days=config.ingestion.history_days)
 
         with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
             result = conn.execute(

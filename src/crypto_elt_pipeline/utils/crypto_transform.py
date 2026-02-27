@@ -29,15 +29,20 @@ class EnhancedMarketSchema(pa.DataFrameModel):
     """Enhanced schema with business logic constraints for crypto market data.
 
     Validates both structure and business rules for cryptocurrency pricing data.
+    Matches validation rules in dbt staging layer (stg_crypto_prices.sql).
     """
 
     coin: str = pa.Field(nullable=False)
     currency: str = pa.Field(nullable=False)
-    ingested_at: pendulum.DateTime = pa.Field(nullable=False)
-    recorded_at: pendulum.DateTime = pa.Field(nullable=False)
+    ingested_at: pl.Datetime = pa.Field(nullable=False)
+    recorded_at: pl.Datetime = pa.Field(nullable=False)
     price: float = pa.Field(gt=0, nullable=False)  # Business rule: Prices must be positive
-    market_cap: float = pa.Field(gt=0, nullable=False)  # Business rule: Market cap must be positive
-    volume: float = pa.Field(gt=0, nullable=False)  # Business rule: Volume must be positive
+    market_cap: float = pa.Field(
+        ge=0, nullable=False
+    )  # Business rule: Market cap must be non-negative (matches dbt)
+    volume: float = pa.Field(
+        ge=0, nullable=False
+    )  # Business rule: Volume must be non-negative (matches dbt)
 
     class Config:
         strict = False  # Allow additional columns
@@ -207,6 +212,12 @@ def resample_to_hourly(df: pl.DataFrame) -> pl.DataFrame:
 def merge_data(existing_df: pl.DataFrame, new_df: pl.DataFrame) -> pl.DataFrame:
     """Merge new data with existing data, deduplicating by recorded_at.
 
+    Timezone Handling:
+        - Converts all timestamps to timezone-naive (removes tz info)
+        - Assumption: All timestamps are in UTC before conversion
+        - This ensures consistency across different data sources/versions
+        - DuckDB stores timestamps as naive by default
+
     Args:
         existing_df: Existing data
         new_df: New data to merge
@@ -220,7 +231,8 @@ def merge_data(existing_df: pl.DataFrame, new_df: pl.DataFrame) -> pl.DataFrame:
     if new_df.is_empty():
         return existing_df
 
-    # Ensure consistent datetime types by converting both to timezone-naive UTC
+    # Ensure consistent datetime types by converting both to timezone-naive
+    # This prevents issues when merging data from different sources or versions
     existing_df = existing_df.with_columns(
         pl.col("recorded_at").dt.replace_time_zone(None).alias("recorded_at"),
         pl.col("ingested_at").dt.replace_time_zone(None).alias("ingested_at"),
@@ -231,9 +243,14 @@ def merge_data(existing_df: pl.DataFrame, new_df: pl.DataFrame) -> pl.DataFrame:
     )
 
     # Concatenate and deduplicate by recorded_at (keep last = new data)
-    merged = pl.concat([existing_df, new_df]).unique(
-        subset=["coin", "recorded_at"],
-        keep="last",
+    # Sort by ingested_at first to ensure deterministic behavior
+    merged = (
+        pl.concat([existing_df, new_df])
+        .sort("ingested_at")
+        .unique(
+            subset=["coin", "recorded_at"],
+            keep="last",
+        )
     )
 
     return merged.sort("recorded_at")

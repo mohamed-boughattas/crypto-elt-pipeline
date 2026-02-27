@@ -75,6 +75,9 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
     - No data exists for a coin
     - Data is older than the freshness threshold (24 hours)
 
+    Note: Uses direct DuckDB connection for sensor independence.
+    Sensors run on their own schedule and need direct DB access.
+
     Returns:
         SensorResult with run requests for stale partitions.
     """
@@ -90,6 +93,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
     for coin_id in config.coin_ids:
         try:
             # Query DuckDB to get the latest recorded_at timestamp for this coin
+            # Using duckdb directly for sensor independence from asset execution
             with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
                 result = conn.execute(
                     "SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?",

@@ -9,12 +9,12 @@ import os
 import random
 import time
 from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 
 import airbyte as ab
 import pendulum
 
 from crypto_elt_pipeline.config import get_config
+from crypto_elt_pipeline.constants import LOGS_DIR
 
 
 class RateLimitError(Exception):
@@ -95,11 +95,19 @@ def fetch_coingecko_data(
                     "end_date": end_date,
                 }
 
-                # Redirect stdout/stderr to suppress low-level connector noise
-                with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                # Redirect PyAirbyte connector output to log file instead of suppressing
+                # This preserves debugging information while keeping console clean
+                airbyte_log_path = LOGS_DIR / "airbyte_connector.log"
+                airbyte_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+                with (
+                    open(airbyte_log_path, "a") as log_file,
+                    redirect_stdout(log_file),
+                    redirect_stderr(log_file),
+                ):
                     source = ab.get_source(
                         config.api.connector,
-                        docker_image="airbyte/source-coingecko-coins:0.2.26",
+                        docker_image=config.api.docker_image,
                         config=source_config,
                         install_if_missing=True,
                     )
@@ -108,7 +116,20 @@ def fetch_coingecko_data(
                     records = list(source.get_records("market_chart"))
 
                 if not records:
-                    raise ValueError(f"No records found for {coin_id}")
+                    # Empty response - treat as transient error and retry
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2**attempt), max_delay)
+                        jitter = delay * (0.5 + random.random())
+                        logger.warning(
+                            f"⚠️ Empty response for {coin_id} (attempt {attempt + 1}/{max_retries + 1}). "
+                            f"Waiting {jitter:.1f}s before retry..."
+                        )
+                        time.sleep(jitter)
+                        continue
+                    else:
+                        raise ValueError(
+                            f"No records found for {coin_id} after {max_retries} attempts"
+                        )
 
                 execution_time = time.time() - start_time
                 records_count = len(records)
