@@ -218,6 +218,9 @@ def get_data_hash(raw_df: Any) -> str:
 
     Returns:
         Hash string
+
+    Raises:
+        ValueError: If data cannot be serialized for hashing
     """
     try:
         # Try to get a stable representation of the data
@@ -230,5 +233,9 @@ def get_data_hash(raw_df: Any) -> str:
 
         data_str = json.dumps(data_repr, sort_keys=True, default=str)
         return hashlib.md5(data_str.encode()).hexdigest()
-    except Exception:
-        return "unknown"
+    except (json.JSONDecodeError, TypeError, AttributeError) as e:
+        # Log the specific error for debugging
+        import logging
+
+        logging.warning(f"Failed to hash data for cache: {e}")
+        raise ValueError(f"Cannot hash data for cache: {e}") from e
