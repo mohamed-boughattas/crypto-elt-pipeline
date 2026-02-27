@@ -62,11 +62,6 @@ def get_crypto_partitions() -> dg.StaticPartitionsDefinition:
     return _get_crypto_partitions()
 
 
-# Backwards-compatible alias for tests and external code
-# Note: This now uses lazy loading instead of loading at module import time
-CRYPTO_PARTITIONS = property(lambda self: _get_crypto_partitions())
-
-
 class _CRYPTO_PARTITIONS_COMPAT:
     """Compatibility class for CRYPTO_PARTITIONS.
 
@@ -85,7 +80,7 @@ class _CRYPTO_PARTITIONS_COMPAT:
 # For backwards compatibility - use the compatibility class
 # This allows both `CRYPTO_PARTITIONS.get_partition_keys()` and
 # `get_crypto_partitions().get_partition_keys()` to work
-CRYPTO_PARTITIONS = _CRYPTO_PARTITIONS_COMPAT()
+CRYPTO_PARTITIONS: dg.StaticPartitionsDefinition = _CRYPTO_PARTITIONS_COMPAT()  # type: ignore[assignment]
 
 
 # ------------------------------------------------------------------

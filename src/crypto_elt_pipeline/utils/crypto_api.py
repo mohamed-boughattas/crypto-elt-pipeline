@@ -181,5 +181,8 @@ def fetch_coingecko_data(
                 # For other errors, just re-raise the original exception
                 raise
 
+        # This should never be reached but satisfies mypy
+        raise ValueError(f"Unexpected error fetching data for {coin_id}")
+
     # Execute fetch with retry logic
-    return _fetch_with_retry()
+    return _fetch_with_retry()  # type: ignore[return]
