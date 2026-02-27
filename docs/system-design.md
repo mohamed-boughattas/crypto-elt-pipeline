@@ -78,6 +78,7 @@ Modern ELT pipeline demonstrating:
 ingestion:
   vs_currency: usd
   days_to_fetch: 30
+  history_days: 365  # Days of historical data to load from DuckDB
   retry_max_attempts: 3
   retry_base_delay: 10  # seconds
   retry_max_delay: 60   # seconds
