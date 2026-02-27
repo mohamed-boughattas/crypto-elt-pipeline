@@ -11,68 +11,147 @@ Architecture:
 """
 
 import os
-import random
-import time
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
 
-import airbyte as ab
 import dagster as dg
-import duckdb
-import pandera.polars as pa
-import pendulum
 import polars as pl
 
 from crypto_elt_pipeline.config import get_config
-from crypto_elt_pipeline.constants import DUCKDB_PATH
-from crypto_elt_pipeline.utils.cache import (
-    cache,
-    cache_result,
-    get_cache_key_for_api,
-    get_cache_key_for_unnest,
+from crypto_elt_pipeline.utils.crypto_api import fetch_coingecko_data
+from crypto_elt_pipeline.utils.crypto_db import (
+    calculate_days_to_fetch,
+    get_existing_data,
+    get_latest_timestamp,
+)
+from crypto_elt_pipeline.utils.crypto_transform import (
+    merge_data,
+    resample_to_hourly,
+    unnest_market_data,
 )
 
 # Optional CoinGecko API key for Pro API access (higher rate limits)
 COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY")
-
 
 # ------------------------------------------------------------------
 # Data Contracts (Pandera) - Enhanced with Business Logic
 # ------------------------------------------------------------------
 
 
-class RawMarketChartSchema(pa.DataFrameModel):
-    """Validates the raw nested structure from CoinGecko API.
+def validate_raw_data(df: pl.DataFrame) -> pl.DataFrame:
+    """Validate raw nested data structure from CoinGecko API.
 
     The API returns nested lists where each element is [timestamp, value].
-    This schema validates the structure before landing in Bronze.
+    This function validates the structure before landing in Bronze.
+
+    Args:
+        df: Raw DataFrame with nested lists
+
+    Returns:
+        Validated DataFrame
+
+    Raises:
+        ValueError: If validation fails
     """
+    try:
+        # Check required columns exist
+        required_columns = ["prices", "market_caps", "total_volumes"]
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f"Missing required column: {col}")
 
-    prices: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
-    market_caps: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
-    total_volumes: pl.List = pa.Field(dtype_kwargs={"inner": pl.List(pl.Float64)})
+        # Check that we have at least one row
+        if df.height == 0:
+            raise ValueError("DataFrame cannot be empty")
 
-    class Config:
-        strict = False  # Allow additional columns
+        # Check that the first row has the expected structure
+        # The data might be in different formats, so be more flexible
+        first_row = df.row(0)
+
+        # Find the index of each column
+        prices_idx = df.columns.index("prices") if "prices" in df.columns else -1
+        market_caps_idx = df.columns.index("market_caps") if "market_caps" in df.columns else -1
+        total_volumes_idx = (
+            df.columns.index("total_volumes") if "total_volumes" in df.columns else -1
+        )
+
+        # Check if we have the expected data structure
+        if prices_idx >= 0:
+            prices_data = first_row[prices_idx]
+            if not isinstance(prices_data, list):
+                raise ValueError("prices column should contain lists")
+            if len(prices_data) == 0:
+                raise ValueError("prices list cannot be empty")
+
+        if market_caps_idx >= 0:
+            market_caps_data = first_row[market_caps_idx]
+            if not isinstance(market_caps_data, list):
+                raise ValueError("market_caps column should contain lists")
+            if len(market_caps_data) == 0:
+                raise ValueError("market_caps list cannot be empty")
+
+        if total_volumes_idx >= 0:
+            total_volumes_data = first_row[total_volumes_idx]
+            if not isinstance(total_volumes_data, list):
+                raise ValueError("total_volumes column should contain lists")
+            if len(total_volumes_data) == 0:
+                raise ValueError("total_volumes list cannot be empty")
+
+        return df
+    except Exception as e:
+        raise ValueError(f"Raw data validation failed: {e}") from e
 
 
-class EnhancedMarketSchema(pa.DataFrameModel):
-    """Enhanced schema with business logic constraints for crypto market data.
+def validate_enhanced_data(df: pl.DataFrame) -> pl.DataFrame:
+    """Validate flattened market data with business logic constraints.
 
     Validates both structure and business rules for cryptocurrency pricing data.
+
+    Args:
+        df: Flattened DataFrame with market data
+
+    Returns:
+        Validated DataFrame
+
+    Raises:
+        ValueError: If validation fails
     """
+    try:
+        # Check required columns exist
+        required_columns = [
+            "coin",
+            "currency",
+            "ingested_at",
+            "recorded_at",
+            "price",
+            "market_cap",
+            "volume",
+        ]
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f"Missing required column: {col}")
 
-    coin: str = pa.Field(nullable=False)
-    currency: str = pa.Field(nullable=False)
-    ingested_at: pendulum.DateTime = pa.Field(nullable=False)
-    recorded_at: pendulum.DateTime = pa.Field(nullable=False)
-    price: float = pa.Field(gt=0, nullable=False)  # Business rule: Prices must be positive
-    market_cap: float = pa.Field(gt=0, nullable=False)  # Business rule: Market cap must be positive
-    volume: float = pa.Field(gt=0, nullable=False)  # Business rule: Volume must be positive
+        # Check business rules
+        if (df["price"] <= 0).any():
+            raise ValueError("Prices must be positive")
+        if (df["market_cap"] <= 0).any():
+            raise ValueError("Market cap must be positive")
+        if (df["volume"] <= 0).any():
+            raise ValueError("Volume must be positive")
 
-    class Config:
-        strict = False  # Allow additional columns
-        coerce = True  # Automatically coerce types when possible
+        # Check data types
+        if not df["coin"].dtype == pl.String:
+            raise ValueError("coin column must be string")
+        if not df["currency"].dtype == pl.String:
+            raise ValueError("currency column must be string")
+        if df["price"].dtype not in [pl.Float64, pl.Float32]:
+            raise ValueError("price column must be float")
+        if df["market_cap"].dtype not in [pl.Float64, pl.Float32]:
+            raise ValueError("market_cap column must be float")
+        if df["volume"].dtype not in [pl.Float64, pl.Float32]:
+            raise ValueError("volume column must be float")
+
+        return df
+    except Exception as e:
+        raise ValueError(f"Enhanced data validation failed: {e}") from e
 
 
 # ------------------------------------------------------------------
@@ -89,172 +168,14 @@ def _get_crypto_partitions() -> dg.StaticPartitionsDefinition:
     return dg.StaticPartitionsDefinition(config.coin_ids)
 
 
-# Lazy partition definition
+# Partition definition (loaded at module import time)
+# Note: If config/coins.yaml is missing, this will fail during import.
 CRYPTO_PARTITIONS = _get_crypto_partitions()
 
 
 # ------------------------------------------------------------------
-# Incremental Loading Helpers
+# Configuration
 # ------------------------------------------------------------------
-
-
-def get_latest_timestamp(coin_id: str) -> pendulum.DateTime | None:
-    """Get the latest recorded_at timestamp for a coin from DuckDB.
-
-    Args:
-        coin_id: Cryptocurrency identifier
-
-    Returns:
-        Latest timestamp as timezone-aware UTC datetime, or None if no data exists
-    """
-    try:
-        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-            result = conn.execute(
-                "SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?",
-                [coin_id],
-            ).fetchone()
-            if result and result[0]:
-                # Convert to timezone-aware UTC datetime
-                ts = result[0]
-                if ts.tzinfo is None:
-                    # Assume UTC if no timezone info
-                    return pendulum.instance(ts, tz="UTC")
-                return pendulum.instance(ts)
-            return None
-    except (duckdb.Error, FileNotFoundError):
-        # Table doesn't exist yet or database doesn't exist
-        return None
-
-
-def calculate_days_to_fetch(latest_timestamp: pendulum.DateTime | None, default_days: int) -> int:
-    """Calculate how many days of data to fetch based on latest timestamp.
-
-    Args:
-        latest_timestamp: Latest timestamp in existing data, or None
-        default_days: Default number of days to fetch if no data exists
-
-    Returns:
-        Number of days to fetch (minimum 1, maximum default_days)
-    """
-    if latest_timestamp is None:
-        return default_days
-
-    # Calculate days since last record
-    now = pendulum.now("UTC")
-    days_diff = (now - latest_timestamp).days
-
-    # Fetch at least 1 day (to get today's data) and at most default_days
-    return max(1, min(days_diff + 1, default_days))
-
-
-def get_existing_data(coin_id: str) -> pl.DataFrame:
-    """Get existing data for a coin from DuckDB.
-
-    Args:
-        coin_id: Cryptocurrency identifier
-
-    Returns:
-        Polars DataFrame with existing data, or empty DataFrame with schema
-    """
-    schema = {
-        "coin": pl.String,
-        "currency": pl.String,
-        "ingested_at": pl.Datetime,
-        "recorded_at": pl.Datetime,
-        "price": pl.Float64,
-        "market_cap": pl.Float64,
-        "volume": pl.Float64,
-    }
-
-    try:
-        with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-            result = conn.execute(
-                "SELECT coin, currency, ingested_at, recorded_at, price, market_cap, volume "
-                "FROM raw.crypto_prices WHERE coin = ?",
-                [coin_id],
-            ).fetchall()
-            if result:
-                return pl.DataFrame(result, schema=schema, orient="row")
-    except (duckdb.Error, FileNotFoundError):
-        pass
-
-    return pl.DataFrame(schema=schema)
-
-
-def merge_data(existing_df: pl.DataFrame, new_df: pl.DataFrame) -> pl.DataFrame:
-    """Merge new data with existing data, deduplicating by recorded_at.
-
-    Args:
-        existing_df: Existing data
-        new_df: New data to merge
-
-    Returns:
-        Merged DataFrame with duplicates removed (new data takes precedence)
-    """
-    if existing_df.is_empty():
-        return new_df
-
-    if new_df.is_empty():
-        return existing_df
-
-    # Ensure consistent datetime types by converting both to timezone-naive UTC
-    existing_df = existing_df.with_columns(
-        pl.col("recorded_at").dt.replace_time_zone(None).alias("recorded_at"),
-        pl.col("ingested_at").dt.replace_time_zone(None).alias("ingested_at"),
-    )
-    new_df = new_df.with_columns(
-        pl.col("recorded_at").dt.replace_time_zone(None).alias("recorded_at"),
-        pl.col("ingested_at").dt.replace_time_zone(None).alias("ingested_at"),
-    )
-
-    # Concatenate and deduplicate by recorded_at (keep last = new data)
-    merged = pl.concat([existing_df, new_df]).unique(
-        subset=["coin", "recorded_at"],
-        keep="last",
-    )
-
-    return merged.sort("recorded_at")
-
-
-def resample_to_hourly(df: pl.DataFrame) -> pl.DataFrame:
-    """Resample data to hourly granularity.
-
-    CoinGecko API returns different granularity based on days parameter:
-    - 1 day: 5-minute intervals
-    - 2-90 days: hourly intervals
-    - >90 days: daily intervals
-
-    This function normalizes all data to hourly intervals for consistency.
-
-    Args:
-        df: DataFrame with potentially mixed granularity
-
-    Returns:
-        DataFrame resampled to hourly intervals
-    """
-    if df.is_empty():
-        return df
-
-    # Truncate recorded_at to the hour
-    df = df.with_columns(pl.col("recorded_at").dt.truncate("1h").alias("hour"))
-
-    # Aggregate to hourly: take the last value in each hour
-    # This preserves the coin, currency columns and aggregates price/market_cap/volume
-    hourly_df = df.group_by(["coin", "currency", "hour"]).agg(
-        [
-            pl.col("ingested_at").last().alias("ingested_at"),
-            pl.col("price").last().alias("price"),
-            pl.col("market_cap").last().alias("market_cap"),
-            pl.col("volume").last().alias("volume"),
-        ]
-    )
-
-    # Rename hour back to recorded_at and sort
-    hourly_df = hourly_df.rename({"hour": "recorded_at"}).sort("recorded_at")
-
-    return hourly_df.select(
-        ["coin", "currency", "ingested_at", "recorded_at", "price", "market_cap", "volume"]
-    )
 
 
 class IngestionConfig(dg.Config):
@@ -279,269 +200,6 @@ class IngestionConfig(dg.Config):
         if self.days_to_fetch is not None:
             return self.days_to_fetch
         return get_config().ingestion.days_to_fetch
-
-
-# ------------------------------------------------------------------
-# API Rate Limiting & Retry Logic
-# ------------------------------------------------------------------
-
-
-class RateLimitError(Exception):
-    """Raised when API rate limit is exceeded."""
-
-    pass
-
-
-# ------------------------------------------------------------------
-# Ingestion Logic
-# ------------------------------------------------------------------
-
-
-@cache_result(cache, key_func=get_cache_key_for_api, ttl_hours=1)
-def fetch_coingecko_data(
-    coin_id: str,
-    vs_currency: str,
-    days: int,
-    context: dg.AssetExecutionContext,
-) -> pl.DataFrame:
-    """Fetch raw market data from CoinGecko API via PyAirbyte.
-
-    Implements exponential backoff retry for API failures and rate limits.
-
-    Args:
-        coin_id: Cryptocurrency identifier (e.g., 'bitcoin', 'ethereum')
-        vs_currency: Target currency for price conversion
-        days: Number of days of historical data
-        context: Dagster asset execution context for logging
-
-    Returns:
-        Polars DataFrame with raw nested API response
-
-    Raises:
-        ValueError: If no records are returned from the API
-        RateLimitError: If API rate limit is exceeded
-    """
-    config = get_config()
-
-    # Calculate date range excluding today (only complete days)
-    # This ensures consistent record counts across all coins
-    yesterday = pendulum.now("UTC").subtract(days=1)
-    start_date = yesterday.subtract(days=days - 1).strftime("%d-%m-%Y")
-    end_date = yesterday.strftime("%d-%m-%Y")
-
-    # Validate days is one of the allowed values for CoinGecko connector
-    allowed_days = ["1", "7", "14", "30", "90", "180", "365", "max"]
-    days_str = str(days)
-    if days_str not in allowed_days:
-        # Round up to nearest allowed value
-        days_int = int(days)
-        for allowed in ["1", "7", "14", "30", "90", "180", "365", "max"]:
-            if allowed == "max" or int(allowed) >= days_int:
-                days_str = allowed
-                break
-
-    # Add visual formatting to make cryptocurrency processing more distinct
-    context.log.info(f"{'=' * 60}")
-    context.log.info(f"🔄 Processing {coin_id.upper()} data")
-    context.log.info(f"{'=' * 60}")
-    context.log.debug(f"Date range: {start_date} to {end_date} (excluding today)")
-
-    # Log API key status
-    if COINGECKO_API_KEY:
-        context.log.debug("Using CoinGecko Pro API key for higher rate limits")
-
-    def _fetch_with_retry() -> pl.DataFrame:
-        """Fetch data with exponential backoff and jitter for rate limits."""
-        # Use config values for retry settings
-        max_retries = config.ingestion.retry_max_attempts
-        base_delay = config.ingestion.retry_base_delay
-        max_delay = config.ingestion.retry_max_delay
-
-        for attempt in range(max_retries + 1):
-            start_time = time.time()
-
-            try:
-                # Build source config with optional API key
-                source_config = {
-                    "coin_id": coin_id,
-                    "vs_currency": vs_currency,
-                    "days": days_str,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                }
-
-                # Redirect stdout/stderr to suppress low-level connector noise
-                with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-                    source = ab.get_source(
-                        config.api.connector,
-                        docker_image="airbyte/source-coingecko-coins:0.2.26",
-                        config=source_config,
-                        install_if_missing=True,
-                    )
-                    source.check()
-                    source.select_streams(["market_chart"])
-                    records = list(source.get_records("market_chart"))
-
-                if not records:
-                    raise ValueError(f"No records found for {coin_id}")
-
-                execution_time = time.time() - start_time
-                records_count = len(records)
-
-                context.log.info(
-                    f"✅ Successfully fetched {records_count} records in {execution_time:.2f}s"
-                )
-
-                # Optimize DataFrame creation by pre-allocating and using efficient data structures
-                if records_count > 1000:  # For large datasets, optimize memory usage
-                    # Use more efficient data structure for large datasets
-                    return pl.DataFrame(
-                        [dict(r) for r in records],
-                        strict=False,
-                        schema={
-                            "prices": pl.List(pl.List(pl.Float64)),
-                            "market_caps": pl.List(pl.List(pl.Float64)),
-                            "total_volumes": pl.List(pl.List(pl.Float64)),
-                        },
-                    )
-                else:
-                    return pl.DataFrame([dict(r) for r in records], strict=False)
-
-            except Exception as e:
-                execution_time = time.time() - start_time
-                error_msg = str(e).lower()
-
-                # Log the full error for debugging
-                context.log.error(f"Airbyte connector error for {coin_id}: {str(e)}")
-
-                # Check for rate limit specific errors
-                if any(
-                    rate_limit_indicator in error_msg
-                    for rate_limit_indicator in [
-                        "rate limit",
-                        "429",
-                        "too many requests",
-                        "limit exceeded",
-                        "request limit",
-                        "api limit",
-                        "quota",
-                        "throttled",
-                    ]
-                ):
-                    if attempt < max_retries:
-                        # Exponential backoff with jitter to avoid thundering herd
-                        delay = min(base_delay * (2**attempt), max_delay)
-                        jitter = delay * (0.5 + random.random())  # Add 50-150% jitter
-                        context.log.warning(
-                            f"⚠️ Rate limit hit for {coin_id} (attempt {attempt + 1}/{max_retries}). "
-                            f"Waiting {jitter:.1f}s before retry..."
-                        )
-                        time.sleep(jitter)
-                        continue
-                    else:
-                        # Final attempt failed due to rate limit
-                        context.log.error(
-                            f"❌ Failed to fetch data for {coin_id}: Rate limit exceeded."
-                        )
-                        raise RateLimitError(
-                            f"Rate limit exceeded for {coin_id} after {max_retries} attempts"
-                        ) from e
-
-                # For other errors, just re-raise the original exception
-                raise
-
-        # This should never be reached - all paths inside the loop either return or raise
-        raise RuntimeError("Unexpected: _fetch_with_retry exhausted all retries without returning")
-
-    # Execute fetch with retry logic
-    return _fetch_with_retry()
-
-
-@cache_result(cache, key_func=get_cache_key_for_unnest, ttl_hours=2)
-def unnest_market_data(raw_df: pl.DataFrame, coin_id: str, vs_currency: str) -> pl.DataFrame:
-    """Unnest the nested list structure into flat time-series records.
-
-    The CoinGecko API returns data as nested lists:
-        prices: [[timestamp_ms, price], ...]
-        market_caps: [[timestamp_ms, market_cap], ...]
-        total_volumes: [[timestamp_ms, volume], ...]
-
-    This function flattens them into a single DataFrame with one row per timestamp.
-
-    Args:
-        raw_df: Raw DataFrame with nested lists
-        coin_id: Cryptocurrency identifier
-        vs_currency: Target currency
-
-    Returns:
-        Flattened DataFrame with one row per timestamp
-    """
-    if raw_df.is_empty():
-        return pl.DataFrame(
-            schema={
-                "coin": pl.String,
-                "currency": pl.String,
-                "ingested_at": pl.Datetime,
-                "recorded_at": pl.Datetime,
-                "price": pl.Float64,
-                "market_cap": pl.Float64,
-                "volume": pl.Float64,
-            }
-        )
-
-    # Extract the nested lists from the first row (all data is in one row from API)
-    prices_data = raw_df["prices"].item()
-    market_caps_data = raw_df["market_caps"].item()
-    volumes_data = raw_df["total_volumes"].item()
-
-    # Validate that all lists have the same length
-    n_records = len(prices_data)
-    if len(market_caps_data) != n_records or len(volumes_data) != n_records:
-        raise ValueError(
-            f"Data length mismatch: prices={len(prices_data)}, "
-            f"market_caps={len(market_caps_data)}, volumes={len(volumes_data)}"
-        )
-
-    # Optimized data extraction using numpy arrays for better performance
-    import numpy as np
-
-    # Convert to numpy arrays for faster processing
-    # Convert Polars Series to list first before numpy conversion
-    prices_array = np.array(list(prices_data), dtype=np.float64)
-    market_caps_array = np.array(list(market_caps_data), dtype=np.float64)
-    volumes_array = np.array(list(volumes_data), dtype=np.float64)
-
-    # Extract columns efficiently
-    timestamps = prices_array[:, 0]
-    prices = prices_array[:, 1]
-    market_caps = market_caps_array[:, 1]
-    volumes = volumes_array[:, 1]
-
-    # Create DataFrame efficiently with numpy arrays
-    flattened_df = pl.DataFrame(
-        {
-            "timestamp_ms": timestamps,
-            "price": prices,
-            "market_cap": market_caps,
-            "volume": volumes,
-        }
-    )
-
-    # Convert timestamp from milliseconds to datetime and add metadata
-    current_time = pendulum.now("UTC")
-    flattened_df = flattened_df.with_columns(
-        [
-            (pl.col("timestamp_ms") * 1000).cast(pl.Datetime("us")).alias("recorded_at"),
-            pl.lit(coin_id).cast(pl.String).alias("coin"),
-            pl.lit(vs_currency).cast(pl.String).alias("currency"),
-            pl.lit(current_time).alias("ingested_at"),
-        ]
-    ).drop("timestamp_ms")
-
-    # Reorder columns efficiently
-    return flattened_df.select(
-        ["coin", "currency", "ingested_at", "recorded_at", "price", "market_cap", "volume"]
-    )
 
 
 # ------------------------------------------------------------------
@@ -632,14 +290,16 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
         context.log.info(f"Fetching {days_to_fetch} days of historical data.")
 
     # 2. Extraction: Fetch raw nested data via PyAirbyte
-    raw_df = fetch_coingecko_data(coin_id, vs_currency, days_to_fetch, context)
+    raw_records = fetch_coingecko_data(coin_id, vs_currency, days_to_fetch, context.log)
 
     # 3. Raw Validation: Verify API response structure
     try:
-        RawMarketChartSchema.validate(raw_df)
-        context.log.info(f"✅ Raw schema validation passed for {coin_id}")
-    except pa.errors.SchemaError as e:
-        context.log.error(f"❌ Raw schema validation failed for {coin_id}: {e}")
+        # Convert to DataFrame for validation
+        raw_df = pl.DataFrame(raw_records, strict=False)
+        validate_raw_data(raw_df)
+        context.log.info(f"✅ Raw data validation passed for {coin_id}")
+    except ValueError as e:
+        context.log.error(f"❌ Raw data validation failed for {coin_id}: {e}")
         raise
 
     # 4. Unnest: Flatten nested lists into time-series records
@@ -648,10 +308,10 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
 
     # 5. Validate flattened data with enhanced schema
     try:
-        EnhancedMarketSchema.validate(new_df)
-        context.log.info(f"✅ Enhanced schema validation passed for {coin_id}")
-    except pa.errors.SchemaError as e:
-        context.log.error(f"❌ Enhanced schema validation failed for {coin_id}: {e}")
+        validate_enhanced_data(new_df)
+        context.log.info(f"✅ Enhanced data validation passed for {coin_id}")
+    except ValueError as e:
+        context.log.error(f"❌ Enhanced data validation failed for {coin_id}: {e}")
         raise
 
     # 6. Merge: Combine with existing data if available
