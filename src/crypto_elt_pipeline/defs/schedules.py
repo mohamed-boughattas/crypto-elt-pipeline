@@ -108,7 +108,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
                     if (now - latest_timestamp) > freshness_threshold:
                         run_requests.append(
                             dg.RunRequest(
-                                run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
+                                run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
                                 partition_key=coin_id,
                                 tags={
                                     "trigger": "freshness_sensor",
@@ -124,7 +124,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
                     # No data exists for this coin, trigger a run
                     run_requests.append(
                         dg.RunRequest(
-                            run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
+                            run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
                             partition_key=coin_id,
                             tags={
                                 "trigger": "freshness_sensor",
@@ -138,7 +138,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
             # Database doesn't exist yet, trigger a run for all coins
             run_requests.append(
                 dg.RunRequest(
-                    run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H%M')}",
+                    run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
                     partition_key=coin_id,
                     tags={
                         "trigger": "freshness_sensor",
@@ -156,70 +156,12 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
 
 
 # ------------------------------------------------------------------
-# Stale Data Alert Sensor (Alternative)
-# ------------------------------------------------------------------
-
-
-@dg.sensor(
-    job_name="daily_crypto_refresh",
-    minimum_interval_seconds=21600,  # Check every 6 hours
-    description="Alert when data hasn't been updated in over 24 hours",
-)
-def stale_data_alert_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResult:
-    """Monitor for stale data and send alerts.
-
-    This sensor checks the last materialization time for each partition
-    and creates alerts for partitions that haven't been updated recently.
-
-    Uses cursor to track last check time and avoid creating duplicate
-    run requests within the cooldown period.
-
-    Returns:
-        SensorResult with alerts for stale data.
-    """
-    config = get_config()
-    now = pendulum.now("UTC")
-
-    # Alert threshold: 24 hours (cooldown period before re-alerting)
-    alert_threshold_hours = 24
-    cooldown_seconds = alert_threshold_hours * 3600
-
-    # Parse cursor to get last check time (ISO format timestamp)
-    cursor_data = context.cursor or ""
-    last_check_str = cursor_data.split("|")[0] if "|" in cursor_data else cursor_data
-    _parsed = pendulum.parse(last_check_str) if last_check_str else pendulum.from_timestamp(0)
-    last_check: pendulum.DateTime = (
-        _parsed if isinstance(_parsed, pendulum.DateTime) else pendulum.from_timestamp(0)
-    )
-
-    # Only create run requests if enough time has passed since last check
-    seconds_since_last_check = (now - last_check).total_seconds()
-
-    run_requests = []
-
-    if seconds_since_last_check >= cooldown_seconds:
-        for coin_id in config.coin_ids:
-            run_requests.append(
-                dg.RunRequest(
-                    run_key=f"stale_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
-                    partition_key=coin_id,
-                    tags={
-                        "trigger": "stale_data_alert",
-                        "coin": coin_id,
-                        "threshold_hours": str(alert_threshold_hours),
-                    },
-                )
-            )
-
-    return dg.SensorResult(
-        run_requests=run_requests,
-        cursor=now.isoformat(),
-    )
-
-
-# ------------------------------------------------------------------
 # Export schedules and sensors for Dagster definitions
 # ------------------------------------------------------------------
+# NOTE: The stale_data_alert_sensor was removed because:
+#   1. The data_freshness_sensor already handles triggering runs when data is stale
+#   2. Having both sensors could cause duplicate runs and unnecessary API calls
+#   3. The freshness sensor's partition-aware logic provides more granular control
 
 schedules = [
     daily_crypto_schedule,
@@ -227,5 +169,4 @@ schedules = [
 
 sensors = [
     data_freshness_sensor,
-    stale_data_alert_sensor,
 ]

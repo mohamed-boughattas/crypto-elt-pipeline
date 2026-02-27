@@ -6,7 +6,7 @@ sources:
     schema: raw
     description: |
       Raw cryptocurrency market data from CoinGecko API (flattened time-series).
-      
+
       **Purpose**: Bronze layer - immutable landing zone for API data.
       **Source**: PyAirbyte extraction from CoinGecko API.
       **Frequency**: Incremental loading with hourly granularity.
@@ -22,7 +22,7 @@ sources:
         description: |
           Flattened cryptocurrency market data from CoinGecko API.
           Each row represents a single timestamp with price, market_cap, and volume.
-          
+
           **Business Context**: Raw market data used for financial analysis and trading decisions.
           **Data Quality**: Pre-flattened from nested API response, partitioned by coin.
 
@@ -39,21 +39,8 @@ sources:
               Represents the base currency in the trading pair.
             tests:
               - not_null
-              # NOTE: Keep this list in sync with config/coins.yaml enabled coins
               - accepted_values:
-                  values:
-                    [
-                      "bitcoin",
-                      "ethereum", 
-                      "ripple",
-                      "solana",
-                      "cardano",
-                      "avalanche-2",
-                      "polkadot",
-                      "binancecoin",
-                      "chainlink",
-                      "dogecoin",
-                    ]
+                  values: ['bitcoin', 'ethereum', 'ripple', 'solana', 'cardano', 'avalanche-2', 'polkadot', 'binancecoin', 'chainlink', 'dogecoin']
 
           - name: currency
             description: |
@@ -106,7 +93,7 @@ models:
 
       **Purpose**: Transform raw CoinGecko market data into a clean, typed,
       and deduplicated time-series format suitable for analytics.
-      
+
       **Business Value**: Provides reliable, quality-assured price data for downstream analytics.
       **Data Quality**: Comprehensive validation and standardization.
       **Performance**: Optimized for time-series queries with proper clustering.

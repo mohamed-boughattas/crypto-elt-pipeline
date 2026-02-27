@@ -5,7 +5,7 @@ settings from the coins.yaml file, ensuring consistency across
 Dagster partitions, dbt tests, and documentation.
 """
 
-import threading
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,27 +125,18 @@ def load_config() -> PipelineConfig:
     return PipelineConfig(coins=coins, api=api, ingestion=ingestion)
 
 
-# Global config instance (lazy loaded with thread safety)
-_config: PipelineConfig | None = None
-_config_lock = threading.Lock()
-
-
+@functools.lru_cache(maxsize=1)
 def get_config() -> PipelineConfig:
     """Get the global configuration instance.
 
-    This function implements thread-safe lazy loading to avoid loading
-    the config during module import, which is important for Dagster's
-    code location loading.
+    This function implements thread-safe lazy loading using LRU cache
+    to avoid loading the config during module import, which is important
+    for Dagster's code location loading.
 
     Returns:
         PipelineConfig object with all settings.
     """
-    global _config
-    if _config is None:
-        with _config_lock:
-            if _config is None:  # Double-check pattern
-                _config = load_config()
-    return _config
+    return load_config()
 
 
 def reload_config() -> PipelineConfig:
@@ -156,7 +147,5 @@ def reload_config() -> PipelineConfig:
     Returns:
         Newly loaded PipelineConfig object.
     """
-    global _config
-    with _config_lock:
-        _config = load_config()
-    return _config
+    get_config.cache_clear()
+    return get_config()

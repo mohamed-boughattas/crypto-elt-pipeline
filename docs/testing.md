@@ -58,22 +58,22 @@ This generates a coverage report showing which code is tested.
 tests/
 ├── __init__.py           # Package marker
 ├── conftest.py           # Shared fixtures
-├── test_constants.py     # Tests for path constants (13 tests)
-├── test_schemas.py       # Tests for Pandera schemas
-├── test_ingestion.py     # Tests for data transformations
-├── test_data_quality.py  # Tests for data quality validation
-└── test_integration.py   # End-to-end integration tests
+├── test_constants.py     # Tests for path constants (14 tests)
+├── test_schemas.py       # Tests for Pandera schemas (12 tests)
+├── test_ingestion.py     # Tests for data transformations (28 tests)
+├── test_data_quality.py  # Tests for data quality validation (15 tests)
+└── test_integration.py   # End-to-end integration tests (17 tests)
 ```
 
 **Total: 86 tests**
 
-### Enhanced Test Coverage
+### Test Coverage Areas
 
-- **Rate Limiting Tests**: Verify exponential backoff and error handling
-- **Caching Tests**: Validate cache functionality and performance improvements
-- **Memory Management Tests**: Ensure no memory leaks in data processing
-- **Error Handling Tests**: Comprehensive validation of user feedback mechanisms
-- **Data Quality Gates**: Multi-layered validation from ingestion to Gold layer
+- **Configuration Tests**: Path constants, project structure validation
+- **Schema Validation Tests**: Pandera schemas for raw and enhanced data
+- **Ingestion Tests**: Data transformations, incremental loading, merging, resampling
+- **Data Quality Tests**: Business rules, temporal consistency, cross-system validation
+- **Integration Tests**: End-to-end data flow, database structure, multi-coin support
 
 ---
 
@@ -167,20 +167,6 @@ class TestResampleToHourly:
         assert result["price"].item() == last_price_in_hour
 
 
-class TestRateLimiting:
-    """Tests for API rate limiting and error handling."""
-
-    def test_exponential_backoff(self):
-        """Verify exponential backoff with jitter works correctly."""
-        # Test that retries increase delay exponentially
-        # Test that jitter prevents thundering herd
-        pass
-
-    def test_rate_limit_error_handling(self):
-        """Verify RateLimitError is properly caught and handled."""
-        # Test that RateLimitError triggers retry logic
-        # Test that user gets proper feedback
-        pass
 ```
 
 ### 4. Integration Tests (`test_integration.py`)
@@ -310,22 +296,6 @@ Then use in tests:
 def test_with_fixture(sample_price_data):
     """Test using shared fixture."""
     assert sample_price_data.height == 1
-```
-
----
-
-## 📊 Coverage Goals
-
-| Module                           | Target Coverage |
-| -------------------------------- | --------------- |
-| `constants.py`                   | 100%            |
-| `ingestion.py` (transformations) | 80%             |
-| Schema validation                | 90%             |
-
-Check current coverage:
-
-```bash
-uv run pytest tests/ --cov=src/crypto_elt_pipeline --cov-report=term-missing
 ```
 
 ---

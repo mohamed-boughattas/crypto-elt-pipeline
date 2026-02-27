@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 from dagster import AssetExecutionContext
@@ -11,9 +10,10 @@ from dagster_dbt import (
     dbt_assets,
 )
 
+from crypto_elt_pipeline.constants import DBT_PROJECT_DIR
+
 # 1. dbt Project Initialization
 # Resolves the project path and prepares the manifest during development.
-DBT_PROJECT_DIR = Path(__file__).parents[4] / "dbt_project"
 dbt_project = DbtProject(project_dir=DBT_PROJECT_DIR)
 dbt_project.prepare_if_dev()
 
