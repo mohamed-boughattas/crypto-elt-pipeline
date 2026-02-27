@@ -632,3 +632,58 @@ class TestUnnestMarketData:
 
         assert actual_pendulum == expected_datetime
         # Note: Polars datetime objects don't preserve timezone info, but the conversion is correct
+
+
+class TestIngestionConfigEdgeCases:
+    """Edge case tests for IngestionConfig."""
+
+    def test_config_with_custom_currency(self):
+        """Test IngestionConfig with custom currency."""
+        from crypto_elt_pipeline.defs.assets.ingestion import IngestionConfig
+
+        config = IngestionConfig(vs_currency="eur")
+        assert config.vs_currency == "eur"
+        assert config.get_vs_currency() == "eur"
+
+    def test_config_with_custom_days(self):
+        """Test IngestionConfig with custom days."""
+        from crypto_elt_pipeline.defs.assets.ingestion import IngestionConfig
+
+        config = IngestionConfig(days_to_fetch=90)
+        assert config.days_to_fetch == 90
+        assert config.get_days_to_fetch() == 90
+
+    def test_config_falls_back_to_default(self):
+        """Test IngestionConfig falls back to default config."""
+        from crypto_elt_pipeline.defs.assets.ingestion import IngestionConfig
+
+        config = IngestionConfig()
+        # Should use defaults from config file
+        assert config.get_vs_currency() == "usd"
+        assert config.get_days_to_fetch() == 30
+
+
+class TestCryptoPartitionsValidation:
+    """Tests for partition key validation."""
+
+    def test_valid_partition_coins(self):
+        """Test that all configured coins are valid partitions."""
+        from crypto_elt_pipeline.defs.assets.ingestion import get_crypto_partitions
+
+        partitions = get_crypto_partitions()
+        keys = partitions.get_partition_keys()
+
+        # Verify expected coins exist
+        expected_coins = ["bitcoin", "ethereum", "solana", "cardano", "dogecoin"]
+        for coin in expected_coins:
+            assert coin in keys, f"Expected coin {coin} not found in partitions"
+
+    def test_partition_count_matches_config(self):
+        """Test partition count matches enabled coins in config."""
+        from crypto_elt_pipeline.defs.assets.ingestion import get_crypto_partitions
+
+        partitions = get_crypto_partitions()
+        keys = partitions.get_partition_keys()
+
+        # Should have at least 5 coins configured
+        assert len(keys) >= 5
