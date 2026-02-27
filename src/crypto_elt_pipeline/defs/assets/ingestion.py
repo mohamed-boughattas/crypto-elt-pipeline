@@ -10,8 +10,6 @@ Architecture:
     CoinGecko API → PyAirbyte → raw_crypto_prices (Bronze) → dbt staging (Silver)
 """
 
-import os
-
 import dagster as dg
 import polars as pl
 
@@ -26,151 +24,68 @@ from crypto_elt_pipeline.utils.crypto_transform import (
     merge_data,
     resample_to_hourly,
     unnest_market_data,
+    validate_enhanced_data,
+    validate_raw_data,
 )
 
-# Optional CoinGecko API key for Pro API access (higher rate limits)
-COINGECKO_API_KEY = os.environ.get("COINGECKO_API_KEY")
-
-# ------------------------------------------------------------------
-# Data Contracts (Pandera) - Enhanced with Business Logic
-# ------------------------------------------------------------------
-
-
-def validate_raw_data(df: pl.DataFrame) -> pl.DataFrame:
-    """Validate raw nested data structure from CoinGecko API.
-
-    The API returns nested lists where each element is [timestamp, value].
-    This function validates the structure before landing in Bronze.
-
-    Args:
-        df: Raw DataFrame with nested lists
-
-    Returns:
-        Validated DataFrame
-
-    Raises:
-        ValueError: If validation fails
-    """
-    try:
-        # Check required columns exist
-        required_columns = ["prices", "market_caps", "total_volumes"]
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Missing required column: {col}")
-
-        # Check that we have at least one row
-        if df.height == 0:
-            raise ValueError("DataFrame cannot be empty")
-
-        # Check that the first row has the expected structure
-        # The data might be in different formats, so be more flexible
-        first_row = df.row(0)
-
-        # Find the index of each column
-        prices_idx = df.columns.index("prices") if "prices" in df.columns else -1
-        market_caps_idx = df.columns.index("market_caps") if "market_caps" in df.columns else -1
-        total_volumes_idx = (
-            df.columns.index("total_volumes") if "total_volumes" in df.columns else -1
-        )
-
-        # Check if we have the expected data structure
-        if prices_idx >= 0:
-            prices_data = first_row[prices_idx]
-            if not isinstance(prices_data, list):
-                raise ValueError("prices column should contain lists")
-            if len(prices_data) == 0:
-                raise ValueError("prices list cannot be empty")
-
-        if market_caps_idx >= 0:
-            market_caps_data = first_row[market_caps_idx]
-            if not isinstance(market_caps_data, list):
-                raise ValueError("market_caps column should contain lists")
-            if len(market_caps_data) == 0:
-                raise ValueError("market_caps list cannot be empty")
-
-        if total_volumes_idx >= 0:
-            total_volumes_data = first_row[total_volumes_idx]
-            if not isinstance(total_volumes_data, list):
-                raise ValueError("total_volumes column should contain lists")
-            if len(total_volumes_data) == 0:
-                raise ValueError("total_volumes list cannot be empty")
-
-        return df
-    except Exception as e:
-        raise ValueError(f"Raw data validation failed: {e}") from e
-
-
-def validate_enhanced_data(df: pl.DataFrame) -> pl.DataFrame:
-    """Validate flattened market data with business logic constraints.
-
-    Validates both structure and business rules for cryptocurrency pricing data.
-
-    Args:
-        df: Flattened DataFrame with market data
-
-    Returns:
-        Validated DataFrame
-
-    Raises:
-        ValueError: If validation fails
-    """
-    try:
-        # Check required columns exist
-        required_columns = [
-            "coin",
-            "currency",
-            "ingested_at",
-            "recorded_at",
-            "price",
-            "market_cap",
-            "volume",
-        ]
-        for col in required_columns:
-            if col not in df.columns:
-                raise ValueError(f"Missing required column: {col}")
-
-        # Check business rules
-        if (df["price"] <= 0).any():
-            raise ValueError("Prices must be positive")
-        if (df["market_cap"] <= 0).any():
-            raise ValueError("Market cap must be positive")
-        if (df["volume"] <= 0).any():
-            raise ValueError("Volume must be positive")
-
-        # Check data types
-        if not df["coin"].dtype == pl.String:
-            raise ValueError("coin column must be string")
-        if not df["currency"].dtype == pl.String:
-            raise ValueError("currency column must be string")
-        if df["price"].dtype not in [pl.Float64, pl.Float32]:
-            raise ValueError("price column must be float")
-        if df["market_cap"].dtype not in [pl.Float64, pl.Float32]:
-            raise ValueError("market_cap column must be float")
-        if df["volume"].dtype not in [pl.Float64, pl.Float32]:
-            raise ValueError("volume column must be float")
-
-        return df
-    except Exception as e:
-        raise ValueError(f"Enhanced data validation failed: {e}") from e
-
+# Note: CoinGecko API key is loaded from environment variables.
+# Dagster automatically loads .env files, or you can set COINGECKO_API_KEY directly.
+# See .env.example for configuration.
 
 # ------------------------------------------------------------------
 # Configuration & Partitions (from centralized config)
 # ------------------------------------------------------------------
+
+# Cached partition definition - loaded lazily on first access
+_CRYPTO_PARTITIONS_CACHE: dg.StaticPartitionsDefinition | None = None
 
 
 def _get_crypto_partitions() -> dg.StaticPartitionsDefinition:
     """Get partitions definition from centralized config.
 
     Uses lazy loading to avoid loading config during module import.
+    This allows tests to import the module without requiring coins.yaml.
     """
-    config = get_config()
-    return dg.StaticPartitionsDefinition(config.coin_ids)
+    global _CRYPTO_PARTITIONS_CACHE
+    if _CRYPTO_PARTITIONS_CACHE is None:
+        config = get_config()
+        _CRYPTO_PARTITIONS_CACHE = dg.StaticPartitionsDefinition(config.coin_ids)
+    return _CRYPTO_PARTITIONS_CACHE
 
 
-# Partition definition (loaded at module import time)
-# Note: If config/coins.yaml is missing, this will fail during import.
-CRYPTO_PARTITIONS = _get_crypto_partitions()
+def get_crypto_partitions() -> dg.StaticPartitionsDefinition:
+    """Get the crypto partitions.
+
+    Returns:
+        StaticPartitionsDefinition with coin IDs
+    """
+    return _get_crypto_partitions()
+
+
+# Backwards-compatible alias for tests and external code
+# Note: This now uses lazy loading instead of loading at module import time
+CRYPTO_PARTITIONS = property(lambda self: _get_crypto_partitions())
+
+
+class _CRYPTO_PARTITIONS_COMPAT:
+    """Compatibility class for CRYPTO_PARTITIONS.
+
+    This provides backwards compatibility for code that accesses
+    CRYPTO_PARTITIONS directly as a module-level variable.
+    Uses lazy loading to avoid failing if coins.yaml is missing.
+    """
+
+    def get_partition_keys(self):
+        return _get_crypto_partitions().get_partition_keys()
+
+    def __getattr__(self, name):
+        return getattr(_get_crypto_partitions(), name)
+
+
+# For backwards compatibility - use the compatibility class
+# This allows both `CRYPTO_PARTITIONS.get_partition_keys()` and
+# `get_crypto_partitions().get_partition_keys()` to work
+CRYPTO_PARTITIONS = _CRYPTO_PARTITIONS_COMPAT()
 
 
 # ------------------------------------------------------------------
@@ -213,7 +128,7 @@ class IngestionConfig(dg.Config):
     kinds={"airbyte", "duckdb"},
     io_manager_key="io_manager",
     key_prefix=["raw"],
-    partitions_def=CRYPTO_PARTITIONS,
+    partitions_def=get_crypto_partitions(),
     retry_policy=dg.RetryPolicy(
         max_retries=2,  # 2 retries on failure
         delay=30,  # Wait 30 seconds before retrying
@@ -266,7 +181,7 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     coin_id = context.partition_key
 
     # Defense-in-depth: Validate partition key
-    valid_coins = CRYPTO_PARTITIONS.get_partition_keys()
+    valid_coins = get_crypto_partitions().get_partition_keys()
     if coin_id not in valid_coins:
         raise ValueError(f"Invalid partition key: {coin_id}. Expected one of {valid_coins}")
 
