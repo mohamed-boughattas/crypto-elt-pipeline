@@ -85,11 +85,14 @@ api:
   source: coingecko
   connector: source-coingecko-coins
   base_url: https://api.coingecko.com/api/v3
+  # Docker image for PyAirbyte connector - update when new versions are released
+  docker_image: airbyte/source-coingecko-coins:0.2.26
 
 # Default ingestion settings
 ingestion:
   vs_currency: usd
   days_to_fetch: 30
+  history_days: 365  # Days of historical data to load from DuckDB for incremental processing
   retry_max_attempts: 3
   retry_base_delay: 10  # seconds
   retry_max_delay: 60   # seconds
