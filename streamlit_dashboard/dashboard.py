@@ -10,190 +10,59 @@ Features:
 - RSI technical indicator
 - Dark/Light theme toggle
 - Advanced risk metrics (Sharpe ratio, Max Drawdown)
+
+Modular Structure:
+- config.py: Page settings, theme styles, constants
+- data.py: Database connection and data fetching
+- indicators.py: Technical indicator calculations
+- charts.py: Chart creation and visualization
 """
 
-from pathlib import Path
+import io
 
-import duckdb
 import pendulum
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 import streamlit as st
-from plotly.subplots import make_subplots
 
-from crypto_elt_pipeline.config import get_config
-
-# --- CUSTOM EXCEPTIONS ---
-
-
-class DataError(Exception):
-    """Custom exception for data-related errors with user-friendly messages."""
-
-    pass
-
-
-# --- DASHBOARD PARAMETERS ---
-CACHE_TTL = 3600  # Cache data for 1 hour
-DEFAULT_DAYS = 30  # Historical lookback period
-MA_PERIOD = 7  # Moving Average window (days)
-RSI_PERIOD = 14  # RSI calculation period
-
-# --- PAGE SETTINGS ---
-st.set_page_config(
-    page_title="Crypto Market Dashboard",
-    page_icon="₿",
-    layout="wide",
-    initial_sidebar_state="expanded",
+from streamlit_dashboard.charts import (
+    create_candlestick_chart,
+    create_rsi_chart,
+    create_volatility_chart,
+)
+from streamlit_dashboard.config import (
+    DEFAULT_DAYS,
+    MA_PERIOD,
+    RSI_PERIOD,
+    get_theme_styles,
+    init_page_config,
+)
+from streamlit_dashboard.data import (
+    DataError,
+    get_available_coins,
+    get_coin_colors,
+    get_market_data,
+)
+from streamlit_dashboard.indicators import (
+    calculate_macd,
+    calculate_max_drawdown,
+    calculate_rsi,
+    calculate_sharpe_ratio,
+    calculate_sma_crossover_signals,
 )
 
-
-# --- THEME MANAGEMENT ---
-def get_theme_styles() -> str:
-    """Generate CSS styles for dark theme."""
-    return """
-    <style>
-    /* Dark Theme */
-    [data-testid="collapsedControl"] { display: none; }
-
-    .analysis-box {
-        background-color: #1e1e2e;
-        border: 1px solid #2d2d3d;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #F7931A;
-        margin-bottom: 20px;
-    }
-    .analysis-box h4 { margin-top: 0; color: #e0e0e0; }
-    .bullish { color: #22c55e; font-weight: bold; }
-    .bearish { color: #ef4444; font-weight: bold; }
-
-    div[data-testid="stMetric"] {
-        background-color: #1e1e2e;
-        border: 1px solid #2d2d3d;
-        padding: 15px;
-        border-radius: 8px;
-    }
-
-    .header-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 1rem;
-    }
-    .title-with-logo { display: flex; align-items: center; gap: 15px; }
-    .bitcoin-logo {
-        width: 50px;
-        height: 50px;
-        background: linear-gradient(135deg, #F7931A 0%, #FFA726 100%);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 28px;
-        font-weight: bold;
-        color: white;
-        box-shadow: 0 4px 6px rgba(247, 147, 26, 0.3);
-        flex-shrink: 0;
-    }
-    .dashboard-title { font-size: 2.5rem; font-weight: 600; margin: 0; color: #e0e0e0; }
-
-    .rsi-overbought { color: #ef4444; }
-    .rsi-oversold { color: #22c55e; }
-
-    /* Custom metric styling */
-    .metric-label { color: #888; font-size: 0.9em; }
-    .metric-value { color: #e0e0e0; font-size: 1.5em; font-weight: bold; }
-    </style>
-    """
-
-
-# --- DATA INFRASTRUCTURE ---
-
-
-def get_db_path() -> Path:
-    """Get the path to the DuckDB database."""
-    project_root = Path(__file__).resolve().parent.parent
-    return project_root / "data" / "crypto.duckdb"
-
-
-def check_database_exists() -> bool:
-    """Check if the database exists and is accessible.
-
-    Returns True if the database exists, False otherwise.
-    This function is NOT cached to allow recovery after DB is created.
-    """
-    db_path = get_db_path()
-
-    if not db_path.exists():
-        st.error(f"❌ Database not found at: {db_path}")
-        st.info("💡 Generate data first: `make pipeline`")
-        return False
-
-    return True
-
-
-@st.cache_resource
-def _create_connection() -> duckdb.DuckDBPyConnection:
-    """Creates a cached, read-only connection to the DuckDB warehouse.
-
-    This function only creates the connection - error handling is done
-    separately to avoid caching exceptions in the cached resource.
-    """
-    db_path = get_db_path()
-    return duckdb.connect(str(db_path), read_only=True)
-
-
-def get_connection() -> duckdb.DuckDBPyConnection:
-    """Get a connection to the DuckDB database.
-
-    Performs existence check before attempting to connect.
-    """
-    if not check_database_exists():
-        st.stop()
-
-    try:
-        return _create_connection()
-    except Exception as e:
-        st.error(f"❌ Database connection failed: {e}")
-        st.stop()
-
-
-conn = get_connection()
-
-
-@st.cache_data(ttl=CACHE_TTL)
-def get_available_coins() -> list:
-    """Fetches list of available coins from the database."""
-    try:
-        query = "SELECT DISTINCT coin FROM mart.fct_crypto_candlesticks ORDER BY coin"
-        df = conn.execute(query).pl()
-        return df["coin"].to_list()
-    except Exception as e:
-        # Log the error for debugging
-        st.error(f"Database error while fetching available coins: {str(e)}")
-        st.warning("⚠️ Unable to fetch coin list from database. Using fallback list.")
-        return ["bitcoin"]  # Fallback
-
-
-AVAILABLE_COINS = get_available_coins()
-
-
-@st.cache_data(ttl=CACHE_TTL)
-def get_coin_colors() -> dict[str, str]:
-    """Get coin colors from configuration."""
-    return get_config().coin_colors
-
-
-COIN_COLORS = get_coin_colors()
-
-# --- SIDEBAR CONTROLS ---
-st.sidebar.header("⚙️ Dashboard Controls")
+# --- INITIALIZE PAGE ---
+init_page_config()
 
 # Apply dark theme styles
 st.markdown(get_theme_styles(), unsafe_allow_html=True)
 
+# --- SIDEBAR CONTROLS ---
+st.sidebar.header("⚙️ Dashboard Controls")
+
 # Coin selection
+AVAILABLE_COINS = get_available_coins()
 selected_coin = st.sidebar.selectbox(
     "Select Cryptocurrency",
     options=AVAILABLE_COINS,
@@ -217,221 +86,11 @@ show_rsi = st.sidebar.checkbox("Show RSI", value=True)
 show_sma_crossover = st.sidebar.checkbox("Show SMA Crossover", value=True)
 show_volume_overlay = st.sidebar.checkbox("Show Volume Bars", value=True)
 show_bollinger_bands = st.sidebar.checkbox("Show Bollinger Bands", value=True)
-
-
-# --- TECHNICAL INDICATOR FUNCTIONS ---
-def calculate_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
-    """Calculate Relative Strength Index (RSI).
-
-    RSI measures the speed and magnitude of recent price changes
-    to evaluate overbought or oversold conditions.
-
-    Args:
-        df: DataFrame with close_price column
-        period: RSI calculation period (default 14)
-
-    Returns:
-        DataFrame with rsi column added
-    """
-    if df.is_empty() or df.height < period:
-        return df.with_columns(pl.lit(None).alias("rsi"))
-
-    # Calculate price changes
-    df = df.with_columns(pl.col("close_price").diff().alias("price_change"))
-
-    # Separate gains and losses
-    df = df.with_columns(
-        [
-            pl.when(pl.col("price_change") > 0)
-            .then(pl.col("price_change"))
-            .otherwise(0)
-            .alias("gain"),
-            pl.when(pl.col("price_change") < 0)
-            .then(pl.col("price_change").abs())
-            .otherwise(0)
-            .alias("loss"),
-        ]
-    )
-
-    # Calculate average gains and losses using EMA-like approach
-    df = df.with_columns(
-        [
-            pl.col("gain").rolling_mean(window_size=period, min_samples=period).alias("avg_gain"),
-            pl.col("loss").rolling_mean(window_size=period, min_samples=period).alias("avg_loss"),
-        ]
-    )
-
-    # Calculate RS and RSI
-    df = df.with_columns(
-        [
-            pl.when(pl.col("avg_loss") == 0)
-            .then(100.0)
-            .otherwise(100 - (100 / (1 + pl.col("avg_gain") / pl.col("avg_loss"))))
-            .alias("rsi")
-        ]
-    )
-
-    # Clean up intermediate columns
-    return df.drop(["price_change", "gain", "loss", "avg_gain", "avg_loss"])
-
-
-def calculate_sma_crossover_signals(df: pl.DataFrame) -> pl.DataFrame:
-    """Calculate SMA crossover signals (Golden Cross / Death Cross).
-
-    Golden Cross: SMA(7) crosses above SMA(25) - Bullish signal
-    Death Cross: SMA(7) crosses below SMA(25) - Bearish signal
-
-    Args:
-        df: DataFrame with sma_7 and sma_25 columns
-
-    Returns:
-        DataFrame with crossover_signal column added
-    """
-    df = df.with_columns(
-        [
-            pl.when(pl.col("sma_7") > pl.col("sma_25"))
-            .then(pl.lit("Golden Cross 🟢"))
-            .otherwise(pl.lit("Death Cross 🔴"))
-            .alias("crossover_signal")
-        ]
-    )
-    return df
-
-
-def calculate_max_drawdown(prices: pl.Series) -> float:
-    """Calculate maximum drawdown percentage.
-
-    Max drawdown measures the largest peak-to-trough decline
-    in the value of an investment.
-
-    Args:
-        prices: Series of closing prices
-
-    Returns:
-        Maximum drawdown as a positive percentage
-    """
-    if len(prices) < 2:
-        return 0.0
-
-    # Calculate running maximum
-    running_max = prices.cum_max()
-
-    # Guard against zero running_max (bad data edge case)
-    if running_max.min() <= 0:
-        return 0.0
-
-    # Calculate drawdown at each point
-    drawdown = (running_max - prices) / running_max * 100
-    # Return maximum drawdown
-    return drawdown.max()
-
-
-def calculate_sharpe_ratio(returns: pl.Series, risk_free_rate: float = 0.0) -> float:
-    """Calculate annualized Sharpe ratio.
-
-    Sharpe ratio measures risk-adjusted return.
-
-    Args:
-        returns: Series of daily returns
-        risk_free_rate: Annual risk-free rate (default 0%)
-
-    Returns:
-        Annualized Sharpe ratio
-    """
-    if len(returns) < 2:
-        return 0.0
-
-    # Filter out null values
-    returns = returns.drop_nulls()
-    if len(returns) < 2:
-        return 0.0
-
-    # Daily risk-free rate
-    daily_rf = risk_free_rate / 252
-
-    # Calculate excess returns
-    excess_returns = returns - daily_rf
-
-    # Calculate Sharpe ratio (annualized)
-    mean_excess = excess_returns.mean()
-    std_returns = excess_returns.std()
-
-    if std_returns == 0:
-        return 0.0
-
-    # Annualize (sqrt(252) for daily to annual)
-    return float((mean_excess / std_returns) * (252**0.5))
-
-
-@st.cache_data(ttl=CACHE_TTL)
-def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.DataFrame:
-    """Fetches OHLCV and volatility from the dbt mart layer for a specific coin.
-
-    Args:
-        coin: Cryptocurrency identifier (e.g., 'bitcoin')
-        start: Start date for the analysis period
-        end: End date for the analysis period
-
-    Returns:
-        Polars DataFrame with OHLCV data and computed metrics
-
-    Raises:
-        DataError: If data is unavailable or stale, with user-friendly message.
-    """
-    try:
-        query = """
-            SELECT
-                trade_date,
-                coin,
-                open_price,
-                high_price,
-                low_price,
-                close_price,
-                daily_volume,
-                volatility_pct,
-                sma_7,
-                sma_25,
-                bb_middle,
-                bb_upper,
-                bb_lower,
-                bb_width,
-                bb_position
-            FROM mart.fct_crypto_candlesticks
-            WHERE coin = $1
-            AND trade_date >= $2
-            AND trade_date <= $3
-            ORDER BY trade_date ASC
-        """
-        df = conn.execute(query, [coin, str(start), str(end)]).pl()
-
-        if df.is_empty():
-            raise DataError(
-                f"No data available for {coin.upper()} in the selected period. "
-                "Please run the pipeline first: `make pipeline`"
-            )
-
-        # Check for stale data (no data in last 48 hours)
-        latest_date = df["trade_date"].max()
-        if latest_date:
-            days_since_update = (pendulum.now("UTC").date() - latest_date).days
-            if days_since_update > 2:
-                st.warning(
-                    f"⚠️ Data may be stale. Last update: {latest_date} ({days_since_update} days ago). "
-                    "Run `make pipeline` to refresh."
-                )
-
-        return df
-
-    except DataError:
-        raise  # Re-raise DataError with user-friendly message
-    except Exception as e:
-        raise DataError(
-            f"Unable to load data for {coin.upper()}. "
-            "Please check if the pipeline has been run and the database exists."
-        ) from e
+show_macd = st.sidebar.checkbox("Show MACD", value=True)
 
 
 # --- APP HEADER ---
+COIN_COLORS = get_coin_colors()
 coin_title = selected_coin.title()
 logo_char = "₿" if selected_coin == "bitcoin" else selected_coin[0].upper()
 logo_color = COIN_COLORS.get(selected_coin, "#888888")
@@ -494,6 +153,11 @@ df = df.with_columns(
     ]
 )
 
+# Check for empty DataFrame after data fetch
+if df.is_empty():
+    st.warning("No data available for the selected period")
+    st.stop()
+
 # Calculate RSI if enabled
 if show_rsi:
     df = calculate_rsi(df, RSI_PERIOD)
@@ -501,6 +165,10 @@ if show_rsi:
 # Calculate SMA crossover signals if enabled
 if show_sma_crossover:
     df = calculate_sma_crossover_signals(df)
+
+# Calculate MACD if enabled
+if show_macd:
+    df = calculate_macd(df)
 
 # Metadata / Refreshed status
 num_days = df.height
@@ -595,10 +263,10 @@ bull_days = (
 )
 bear_days = num_days - bull_days
 
-# Calculate period return
+# Calculate period return (guard against division by zero)
 first_close = df["close_price"].head(1).item()
 last_close = df["close_price"].tail(1).item()
-period_return = ((last_close - first_close) / first_close) * 100
+period_return = ((last_close - first_close) / first_close) * 100 if first_close > 0 else 0.0
 
 col_left, col_right = st.columns(2)
 
@@ -690,230 +358,28 @@ with col_right:
 
 st.markdown("---")
 
-# --- MAIN OHLC CHART WITH RSI AND VOLUME ---
-col_header, col_toggle = st.columns([5, 2])
-with col_header:
-    st.header("📈 Market Price (OHLC)")
-with col_toggle:
-    show_ma = st.checkbox(f"Show {MA_PERIOD}-Day MA", value=True)
+st.header("📈 OHLC Candlestick Chart")
+coin_color = COIN_COLORS.get(selected_coin, "#F7931A")
 
 # Convert to Pandas for Plotly
 df_plot = df.to_pandas()
 
-# Determine number of subplots
-num_rows = 2 if show_rsi and "rsi" in df.columns else 1
-if show_volume_overlay:
-    num_rows = 3 if show_rsi else 2
-
-# Create subplot with RSI and Volume
-if num_rows > 1:
-    row_heights = [0.5, 0.25, 0.25] if num_rows == 3 else [0.7, 0.3]
-    subplot_titles = (
-        ["Price", "Volume", "RSI"]
-        if num_rows == 3
-        else ["Price", "RSI"]
-        if show_rsi
-        else ["Price", "Volume"]
-    )
-
-    fig = make_subplots(
-        rows=num_rows,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.20,
-        row_heights=row_heights[:num_rows],
-        subplot_titles=subplot_titles[:num_rows],
-    )
-
-    # Candlestick Trace
-    fig.add_trace(
-        go.Candlestick(
-            x=df_plot["trade_date"],
-            open=df_plot["open_price"],
-            high=df_plot["high_price"],
-            low=df_plot["low_price"],
-            close=df_plot["close_price"],
-            name="OHLC",
-            increasing_line_color="#26a69a",
-            decreasing_line_color="#ef5350",
-        ),
-        row=1,
-        col=1,
-    )
-
-    if show_ma:
-        fig.add_trace(
-            go.Scatter(
-                x=df_plot["trade_date"],
-                y=df_plot["MA"],
-                mode="lines",
-                name="Moving Average",
-                line={"color": "#F7931A", "width": 2.5},
-            ),
-            row=1,
-            col=1,
-        )
-
-    # Bollinger Bands overlay
-    if show_bollinger_bands and "bb_upper" in df_plot.columns and "bb_lower" in df_plot.columns:
-        # Upper band
-        fig.add_trace(
-            go.Scatter(
-                x=df_plot["trade_date"],
-                y=df_plot["bb_upper"],
-                mode="lines",
-                name="BB Upper",
-                line={"color": "#FF6B6B", "width": 1, "dash": "dot"},
-                showlegend=True,
-            ),
-            row=1,
-            col=1,
-        )
-
-        # Lower band
-        fig.add_trace(
-            go.Scatter(
-                x=df_plot["trade_date"],
-                y=df_plot["bb_lower"],
-                mode="lines",
-                name="BB Lower",
-                line={"color": "#FF6B6B", "width": 1, "dash": "dot"},
-                showlegend=True,
-                fill="tonexty",  # Fill between upper and lower bands
-                fillcolor="rgba(255, 107, 107, 0.1)",  # Light red fill
-            ),
-            row=1,
-            col=1,
-        )
-
-        # Middle band (20-day SMA)
-        if "bb_middle" in df_plot.columns:
-            fig.add_trace(
-                go.Scatter(
-                    x=df_plot["trade_date"],
-                    y=df_plot["bb_middle"],
-                    mode="lines",
-                    name="BB Middle (20 SMA)",
-                    line={"color": "#4ECDC4", "width": 2},
-                    showlegend=True,
-                ),
-                row=1,
-                col=1,
-            )
-
-    current_row = 2
-
-    # Volume bars
-    if show_volume_overlay:
-        colors = [
-            "#22c55e" if c >= o else "#ef4444"
-            for c, o in zip(df_plot["close_price"], df_plot["open_price"], strict=True)
-        ]
-        fig.add_trace(
-            go.Bar(
-                x=df_plot["trade_date"],
-                y=df_plot["daily_volume"],
-                name="Volume",
-                marker_color=colors,
-                opacity=0.7,
-            ),
-            row=current_row,
-            col=1,
-        )
-        fig.update_yaxes(title_text="Volume", row=current_row, col=1)
-        current_row = 3
-
-    # RSI Trace
-    if show_rsi and "rsi" in df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=df_plot["trade_date"],
-                y=df_plot["rsi"],
-                mode="lines",
-                name="RSI",
-                line={"color": "#636EFA", "width": 2},
-            ),
-            row=current_row,
-            col=1,
-        )
-
-        # RSI overbought/oversold lines
-        fig.add_hline(
-            y=70,
-            line_dash="dash",
-            line_color="#ef4444",
-            row=current_row,
-            col=1,
-            annotation_text="Overbought",
-        )
-        fig.add_hline(
-            y=30,
-            line_dash="dash",
-            line_color="#22c55e",
-            row=current_row,
-            col=1,
-            annotation_text="Oversold",
-        )
-        fig.add_hline(y=50, line_dash="dot", line_color="#888888", row=current_row, col=1)
-        fig.update_yaxes(title_text="RSI", row=current_row, col=1)
-
-    fig.update_layout(
-        height=700 if num_rows == 3 else 600,
-        template="plotly_dark",
-        xaxis_rangeslider_visible=False,
-        hovermode="x unified",
-        margin={"l": 20, "r": 20, "t": 20, "b": 20},
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-    )
-    fig.update_yaxes(title_text="USD", row=1, col=1)
-
-else:
-    # Original chart without RSI or Volume
-    fig = go.Figure()
-    fig.add_trace(
-        go.Candlestick(
-            x=df_plot["trade_date"],
-            open=df_plot["open_price"],
-            high=df_plot["high_price"],
-            low=df_plot["low_price"],
-            close=df_plot["close_price"],
-            name="OHLC",
-            increasing_line_color="#26a69a",
-            decreasing_line_color="#ef5350",
-        )
-    )
-
-    if show_ma:
-        fig.add_trace(
-            go.Scatter(
-                x=df_plot["trade_date"],
-                y=df_plot["MA"],
-                mode="lines",
-                name="Moving Average",
-                line={"color": "#F7931A", "width": 2.5},
-            )
-        )
-
-    fig.update_layout(
-        height=500,
-        template="plotly_dark",
-        xaxis_rangeslider_visible=False,
-        hovermode="x unified",
-        yaxis_title="USD",
-        margin={"l": 20, "r": 20, "t": 20, "b": 20},
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-    )
+# Create main candlestick chart using modular component
+fig = create_candlestick_chart(
+    df=df_plot,
+    coin=selected_coin,
+    coin_color=coin_color,
+    show_bollinger_bands=show_bollinger_bands,
+    show_volume=show_volume_overlay,
+    show_title=False,
+)
 
 st.plotly_chart(fig, width="stretch")
 
 # Legend Helper
-c1, c2, c3, c4 = st.columns(4)
+c1, c2 = st.columns(2)
 c1.markdown("🟢 **Bullish** (Close > Open)")
 c2.markdown("🔴 **Bearish** (Close < Open)")
-if show_ma:
-    c3.markdown("🟠 **Trend line**")
-if show_bollinger_bands:
-    c4.markdown("🔵 **Bollinger Bands**")
 
 st.markdown("---")
 
@@ -923,19 +389,7 @@ col_l, col_r = st.columns(2)
 
 with col_l:
     st.subheader("Volatility Trend")
-    fig_vol = px.line(df_plot, x="trade_date", y="volatility_pct")
-    fig_vol.add_hline(
-        y=avg_vol,
-        line_dash="dash",
-        line_color="red",
-        annotation_text=f"Avg: {avg_vol:.2f}%",
-    )
-    fig_vol.update_traces(line_color="#F7931A")
-    fig_vol.update_layout(
-        height=350,
-        template="plotly_dark",
-        showlegend=False,
-    )
+    fig_vol = create_volatility_chart(df_plot)
     st.plotly_chart(fig_vol, width="stretch")
 
 with col_r:
@@ -948,6 +402,128 @@ with col_r:
         showlegend=False,
     )
     st.plotly_chart(fig_volume, width="stretch")
+
+st.markdown("---")
+
+# --- RSI INDICATOR ---
+# Use existing RSI from earlier calculation if available, otherwise calculate
+df_with_rsi = df if show_rsi and "rsi" in df.columns else calculate_rsi(df, period=RSI_PERIOD)
+
+st.header("📊 RSI Indicator")
+fig_rsi = create_rsi_chart(df_with_rsi)
+st.plotly_chart(fig_rsi, width="stretch")
+
+# RSI Legend
+rsi_col1, rsi_col2, rsi_col3 = st.columns(3)
+rsi_col1.markdown("🟢 **Oversold** (RSI < 30)")
+rsi_col2.markdown("🔴 **Overbought** (RSI > 70)")
+rsi_col3.markdown("⚪ **Neutral** (30-70)")
+
+# --- MACD INDICATOR ---
+if show_macd and "macd" in df.columns:
+    st.markdown("---")
+    st.header("📈 MACD Indicator")
+
+    # Filter out None values for plotting
+    macd_df = df_plot.dropna(subset=["macd", "macd_signal", "macd_histogram"])
+
+    if not macd_df.empty:
+        # Create MACD chart
+        macd_fig = go.Figure()
+
+        # Add MACD Line
+        macd_fig.add_trace(
+            go.Scatter(
+                x=macd_df["trade_date"],
+                y=macd_df["macd"],
+                mode="lines",
+                name="MACD Line",
+                line={"color": "#2196F3", "width": 2},
+                hovertemplate="MACD: %{y:.4f}<extra></extra>",
+            )
+        )
+
+        # Add Signal Line
+        macd_fig.add_trace(
+            go.Scatter(
+                x=macd_df["trade_date"],
+                y=macd_df["macd_signal"],
+                mode="lines",
+                name="Signal Line",
+                line={"color": "#FF9800", "width": 2},
+                hovertemplate="Signal: %{y:.4f}<extra></extra>",
+            )
+        )
+
+        # Add Histogram
+        macd_colors = ["#22c55e" if x > 0 else "#ef4444" for x in macd_df["macd_histogram"]]
+        macd_fig.add_trace(
+            go.Bar(
+                x=macd_df["trade_date"],
+                y=macd_df["macd_histogram"],
+                name="Histogram",
+                marker_color=macd_colors,
+                opacity=0.6,
+                hovertemplate="Histogram: %{y:.4f}<extra></extra>",
+            )
+        )
+
+        # Add zero line for reference
+        macd_fig.add_hline(
+            y=0, line_dash="dash", line_color="white", opacity=0.5, annotation_text="Zero Line"
+        )
+
+        macd_fig.update_layout(
+            title="MACD (12, 26, 9)",
+            xaxis_title="Date",
+            yaxis_title="Value",
+            hovermode="x unified",
+            height=350,
+            template="plotly_dark",
+            legend={
+                "orientation": "h",
+                "yanchor": "bottom",
+                "y": 1.02,
+                "xanchor": "right",
+                "x": 1,
+            },
+        )
+
+        st.plotly_chart(macd_fig, width="stretch")
+
+        # MACD Legend and Interpretation
+        macd_col1, macd_col2, macd_col3 = st.columns(3)
+        macd_col1.markdown("🔵 **MACD Line** (Fast EMA - Slow EMA)")
+        macd_col2.markdown("🟠 **Signal Line** (EMA of MACD)")
+        macd_col3.markdown("🟢 **Bullish** / 🔴 **Bearish** Histogram")
+
+        # MACD Interpretation
+        latest_macd = macd_df["macd"].iloc[-1]
+        latest_signal = macd_df["macd_signal"].iloc[-1]
+        latest_histogram = macd_df["macd_histogram"].iloc[-1]
+
+        st.markdown("**📊 MACD Interpretation:**")
+        interpretation_col1, interpretation_col2, interpretation_col3 = st.columns(3)
+
+        with interpretation_col1:
+            if latest_histogram > 0:
+                st.markdown(f"🟢 **Bullish Momentum**: Histogram = {latest_histogram:.4f}")
+            else:
+                st.markdown(f"🔴 **Bearish Momentum**: Histogram = {latest_histogram:.4f}")
+
+        with interpretation_col2:
+            if latest_macd > latest_signal:
+                st.markdown(f"🟢 **MACD Above Signal**: {latest_macd:.4f} > {latest_signal:.4f}")
+            else:
+                st.markdown(f"🔴 **MACD Below Signal**: {latest_macd:.4f} < {latest_signal:.4f}")
+
+        with interpretation_col3:
+            if latest_macd > 0:
+                st.markdown(f"🟢 **Positive MACD**: {latest_macd:.4f}")
+            else:
+                st.markdown(f"🔴 **Negative MACD**: {latest_macd:.4f}")
+    else:
+        st.warning("⚠️ Insufficient data for MACD calculation. Need at least 35 days of data.")
 
 st.markdown("---")
 
@@ -1000,58 +576,40 @@ with st.expander("📊 View Detailed Time-Series", expanded=False):
     if show_sma_crossover and "crossover_signal" in df.columns:
         display_cols.append(pl.col("crossover_signal"))
 
-    table_df = df.select(display_cols).sort("trade_date", descending=True)
+    display_df = df.select(display_cols)
 
-    # Rename columns for display
-    rename_map = {
-        "trade_date": "Date",
-        "open_price": "Open",
-        "high_price": "High",
-        "low_price": "Low",
-        "close_price": "Close",
-        "daily_change_pct": "Change %",
-        "volatility_pct": "Vol %",
-        "daily_volume": "Volume",
-        "Direction": "Dir",
-        "rsi": "RSI",
-        "crossover_signal": "Signal",
-    }
-    table_df = table_df.rename({k: v for k, v in rename_map.items() if k in table_df.columns})
-
-    # Convert to Pandas for Streamlit display with styling
-    table_pd = table_df.to_pandas()
-
-    def style_dir(val):
-        color = "#22c55e" if "Bullish" in str(val) else "#ef4444"
-        return f"color: {color}; font-weight: bold"
-
-    format_dict = {
-        "Open": "${:,.2f}",
-        "High": "${:,.2f}",
-        "Low": "${:,.2f}",
-        "Close": "${:,.2f}",
-        "Change %": "{:+.2f}%",
-        "Vol %": "{:.2f}%",
-        "Volume": "{:,.0f}",
-    }
-    if "RSI" in table_pd.columns:
-        format_dict["RSI"] = "{:.1f}"
-
-    styled_table = table_pd.style.format(format_dict)
-    if "Dir" in table_pd.columns:
-        styled_table = styled_table.map(style_dir, subset=["Dir"])
-
+    # Convert to Pandas for display
     st.dataframe(
-        styled_table,
-        width="stretch",
+        display_df.to_pandas(),
+        use_container_width=True,
         hide_index=True,
-        height=400,
     )
 
-# CSV Export functionality
-st.download_button(
-    label="📥 Export to CSV",
-    data=df.write_csv(),
-    file_name=f"{selected_coin}_data_{pendulum.now('UTC').strftime('%Y%m%d')}.csv",
-    mime="text/csv",
-)
+    # Export format selection
+    export_format = st.radio(
+        "Export Format",
+        ["CSV", "Parquet"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    # Download buttons
+    if export_format == "CSV":
+        csv = display_df.to_pandas().to_csv(index=False)
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv,
+            file_name=f"{selected_coin}_market_data.csv",
+            mime="text/csv",
+        )
+    else:  # Parquet
+        buffer = io.BytesIO()
+        display_df.write_parquet(buffer)
+        parquet_bytes = buffer.getvalue()
+        st.download_button(
+            label="📥 Download Parquet",
+            data=parquet_bytes,
+            file_name=f"{selected_coin}_market_data.parquet",
+            mime="application/octet-stream",
+            help="Parquet format - smaller file size, faster loading, native Polars format",
+        )
