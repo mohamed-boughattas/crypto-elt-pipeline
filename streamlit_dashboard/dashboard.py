@@ -581,7 +581,7 @@ with st.expander("📊 View Detailed Time-Series", expanded=False):
     # Convert to Pandas for display
     st.dataframe(
         display_df.to_pandas(),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
