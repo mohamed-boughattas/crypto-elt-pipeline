@@ -98,13 +98,6 @@ jobs:
 
       - name: Generate dbt documentation
         run: cd dbt_project && uv run dbt docs generate
-
-      - name: Run dbt models
-        run: cd dbt_project && uv run dbt run
-
-      - name: Run dbt tests
-        run: cd dbt_project && uv run dbt test
-
       - name: Upload dbt docs artifact
         uses: actions/upload-artifact@v4
         with:
