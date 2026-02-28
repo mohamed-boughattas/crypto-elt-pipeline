@@ -11,11 +11,24 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports]
+        files: ^src/crypto_elt_pipeline/
+        additional_dependencies:
+          - types-PyYAML
+
   # SQLFluff - SQL linter for dbt models
   - repo: https://github.com/sqlfluff/sqlfluff
     rev: 3.3.1
     hooks:
       - id: sqlfluff-lint
+        args: [--config, dbt_project/.sqlfluff]
+        files: ^dbt_project/models/
+      - id: sqlfluff-fix
         args: [--config, dbt_project/.sqlfluff]
         files: ^dbt_project/models/
 
@@ -29,8 +42,23 @@ repos:
         args: [--unsafe]
       - id: check-toml
       - id: check-added-large-files
-        args: [--maxkb=1000]
+        args: [--maxkb=5000]
       - id: detect-private-key
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.44.0
+    hooks:
+      - id: markdownlint
+        args: [--fix, --disable, MD013, MD033, MD034]
+        files: \.md$
+
+  # Conventional commits
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
 
 # CI configuration
 ci:
