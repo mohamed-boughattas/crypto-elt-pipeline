@@ -2,7 +2,7 @@
 
 > **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Features incremental extraction (~97% fewer API calls), Medallion architecture, and full data lineage. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml)
 [![pytest](https://img.shields.io/badge/testing-pytest-green)](https://docs.pytest.org/)
 [![Pandera](https://img.shields.io/badge/validation-Pandera-blue)](https://pandera.readthedocs.io/)
@@ -58,7 +58,7 @@ Automated pipeline that:
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.12
 - [uv](https://docs.astral.sh/uv/) installed
 - Docker (required for PyAirbyte connectors)
 - (Optional) CoinGecko Pro API key for higher rate limits
@@ -84,8 +84,6 @@ make start
 ---
 
 ## ⏱️ Expected Runtime
-
-| Operation | Time (Free API) | Time (Pro API) | Notes |
 
 | Operation                            | Time (Free API) | Time (Pro API) | Notes                                                      |
 | ------------------------------------ | --------------- | -------------- | ---------------------------------------------------------- |
@@ -338,6 +336,26 @@ Multiple validation layers ensure data reliability:
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
+
+---
+
+## 🤝 Contributing
+
+This is a personal learning project, but suggestions are welcome!
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-improvement`
+3. Make changes and ensure tests pass: `make test`
+4. Run linting: `make lint`
+5. Submit a pull request
+
+### Code Style
+
+- Python: Ruff formatting (auto-fixed via pre-commit)
+- SQL: SQLFluff with dbt templating
+- Commit messages: Descriptive and concise
 
 ---
 
