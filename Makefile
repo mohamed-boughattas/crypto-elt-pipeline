@@ -15,7 +15,7 @@ help:
 	@echo "  make start     → Setup + Pipeline + Dashboard (one command!)"
 	@echo ""
 	@echo "Pipeline Operations:"
-	@echo "  make pipeline  → Run data pipeline (all enabled coins, ~15-20 min)"
+	@echo "  make pipeline  → Run data pipeline (all enabled coins)"
 	@echo "  make coin=bitcoin pipeline-coin → Run pipeline for specific coin"
 	@echo "  make status    → Quick health check without opening Dagster UI"
 	@echo ""
@@ -145,13 +145,17 @@ test-dbt: setup
 
 # Clean generated files (preserves .dagster_home for run history)
 clean:
+	@echo "🧹 Cleaning generated files..."
 	@rm -rf data/*.duckdb data/*.duckdb.wal dbt_project/target
+	@echo "✅ Clean complete!"
 	@rm -rf source-* /tmp/airbyte
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 # Deep clean (including .dagster_home and .venv)
 deep-clean:
+	@echo "💣 Deep cleaning all generated files..."
 	@rm -rf data/*.duckdb data/*.duckdb.wal .dagster_home dbt_project/target .venv
+	@echo "✅ Deep clean complete!"
 	@rm -rf source-* /tmp/airbyte
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
