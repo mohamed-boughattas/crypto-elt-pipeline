@@ -26,6 +26,7 @@ help:
 	@echo "Testing & Quality:"
 	@echo "  make test      → Run tests"
 	@echo "  make test-cov  → Run tests with coverage report"
+	@echo "  make test-dbt  → Run dbt tests"
 	@echo "  make lint      → Run linting and format checks"
 	@echo "  make lint-dbt  → Lint dbt models with SQLFluff"
 	@echo "  make lint-dbt-fix → Fix dbt linting issues"
@@ -37,6 +38,7 @@ help:
 	@echo "Utilities:"
 	@echo "  make list-coins    → Show all enabled coins from config"
 	@echo "  make validate-coins → Validate coin list against config"
+	@echo "  make dry-run       → Preview pipeline execution"
 
 # Setup environment
 setup:
@@ -49,6 +51,23 @@ validate-coins:
 	@echo "🔍 Validating coin list against config/coins.yaml..."
 	@uv run python -c "import yaml; coins=[c['id'] for c in yaml.safe_load(open('config/coins.yaml'))['coins'] if c.get('enabled', True)]; print(f'Found {len(coins)} enabled coins: {\" \".join(coins)}')"
 	@echo "✅ All coins validated successfully!"
+
+# Preview pipeline execution without running
+dry-run:
+	@echo "🔍 Pipeline Dry-Run Preview"
+	@echo ""
+	@echo "📦 Coins to process: $(COINS)"
+	@echo ""
+	@echo "🔄 Bronze Layer Assets:"
+	@echo "   - raw/crypto_prices (partitioned by coin)"
+	@echo ""
+	@echo "🥈 Silver Layer Assets:"
+	@echo "   - staging/stg_crypto_prices"
+	@echo ""
+	@echo "🥇 Gold Layer Assets:"
+	@echo "   - mart/fct_crypto_candlesticks"
+	@echo ""
+	@docker info >/dev/null 2>&1 && echo "✅ Docker is running" || echo "❌ Docker is not running"
 
 # List all enabled coins from config
 list-coins:
@@ -90,7 +109,7 @@ endif
 # Launch Streamlit dashboard
 dashboard:
 	@test -f $(DB_PATH) || $(MAKE) pipeline
-	@uv run streamlit run streamlit_dashboard/dashboard.py
+	@PYTHONPATH=. uv run streamlit run streamlit_dashboard/dashboard.py
 
 # One command to run everything
 start: pipeline dashboard
@@ -119,6 +138,10 @@ lint-dbt: setup
 # Fix dbt linting issues with SQLFluff
 lint-dbt-fix: setup
 	@cd dbt_project && uv run sqlfluff fix models/
+
+# Run dbt tests
+test-dbt: setup
+	@cd dbt_project && uv run dbt test
 
 # Clean generated files (preserves .dagster_home for run history)
 clean:
