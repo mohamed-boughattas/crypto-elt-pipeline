@@ -85,11 +85,22 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Cache dbt packages
+        uses: actions/cache@v4
+        with:
+          path: dbt_project/dbt_packages/
+          key: ${{ runner.os }}-dbt-${{ hashFiles('dbt_project/packages.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-dbt-
+
       - name: Install dbt dependencies
         run: cd dbt_project && uv run dbt deps
 
       - name: Generate dbt documentation
         run: cd dbt_project && uv run dbt docs generate
+
+      - name: Run dbt tests
+        run: cd dbt_project && uv run dbt test
 
       - name: Upload dbt docs artifact
         uses: actions/upload-artifact@v4
