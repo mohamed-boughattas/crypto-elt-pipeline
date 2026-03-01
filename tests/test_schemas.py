@@ -115,12 +115,12 @@ class TestEnhancedMarketSchema:
                 "coin": ["bitcoin", "bitcoin"],
                 "currency": ["usd", "usd"],
                 "ingested_at": [
-                    pendulum.datetime(2024, 1, 1, 12, 0, 0),
-                    pendulum.datetime(2024, 1, 1, 12, 0, 0),
+                    pendulum.datetime(2026, 3, 1, 12, 0, 0),
+                    pendulum.datetime(2026, 3, 1, 12, 0, 0),
                 ],
                 "recorded_at": [
-                    pendulum.datetime(2024, 1, 1, 0, 0, 0),
-                    pendulum.datetime(2024, 1, 1, 1, 0, 0),
+                    pendulum.datetime(2026, 3, 1, 0, 0, 0),
+                    pendulum.datetime(2026, 3, 1, 1, 0, 0),
                 ],
                 "price": [45000.50, 45100.25],
                 "market_cap": [850000000000.0, 852000000000.0],
@@ -136,8 +136,8 @@ class TestEnhancedMarketSchema:
         df = pl.DataFrame(
             {
                 "currency": ["usd"],
-                "ingested_at": [pendulum.datetime(2024, 1, 1, 12, 0, 0)],
-                "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
+                "ingested_at": [pendulum.datetime(2026, 3, 1, 12, 0, 0)],
+                "recorded_at": [pendulum.datetime(2026, 3, 1, 0, 0, 0)],
                 "price": [45000.50],
                 "market_cap": [850000000000.0],
                 "volume": [25000000000.0],
@@ -153,8 +153,8 @@ class TestEnhancedMarketSchema:
             {
                 "coin": ["bitcoin"],
                 "currency": ["usd"],
-                "ingested_at": [pendulum.datetime(2024, 1, 1, 12, 0, 0)],
-                "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
+                "ingested_at": [pendulum.datetime(2026, 3, 1, 12, 0, 0)],
+                "recorded_at": [pendulum.datetime(2026, 3, 1, 0, 0, 0)],
                 "market_cap": [850000000000.0],
                 "volume": [25000000000.0],
             }
@@ -169,8 +169,8 @@ class TestEnhancedMarketSchema:
             {
                 "coin": ["bitcoin"],
                 "currency": ["usd"],
-                "ingested_at": [pendulum.datetime(2024, 1, 1, 12, 0, 0)],
-                "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
+                "ingested_at": [pendulum.datetime(2026, 3, 1, 12, 0, 0)],
+                "recorded_at": [pendulum.datetime(2026, 3, 1, 0, 0, 0)],
                 "price": [-1.0],  # Negative price should fail
                 "market_cap": [850000000000.0],
                 "volume": [25000000000.0],
@@ -185,8 +185,8 @@ class TestEnhancedMarketSchema:
             {
                 "coin": ["bitcoin"],
                 "currency": ["usd"],
-                "ingested_at": [pendulum.datetime(2024, 1, 1, 12, 0, 0)],
-                "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
+                "ingested_at": [pendulum.datetime(2026, 3, 1, 12, 0, 0)],
+                "recorded_at": [pendulum.datetime(2026, 3, 1, 0, 0, 0)],
                 "price": [45000.50],
                 "market_cap": [850000000000.0],
                 "volume": [0.0],  # Zero volume should pass (allowed in real markets)
@@ -202,8 +202,8 @@ class TestEnhancedMarketSchema:
             {
                 "coin": ["bitcoin"],
                 "currency": ["usd"],
-                "ingested_at": [pendulum.datetime(2024, 1, 1, 12, 0, 0)],
-                "recorded_at": [pendulum.datetime(2024, 1, 1, 0, 0, 0)],
+                "ingested_at": [pendulum.datetime(2026, 3, 1, 12, 0, 0)],
+                "recorded_at": [pendulum.datetime(2026, 3, 1, 0, 0, 0)],
                 "price": [45000.50],
                 "market_cap": [850000000000.0],
                 "volume": [25000000000.0],

@@ -4,6 +4,8 @@ This module provides reusable test fixtures to eliminate duplicated
 DataFrame construction across test modules.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pendulum
 import polars as pl
 import pytest
@@ -82,14 +84,14 @@ def sample_bronze_data():
             "coin": ["bitcoin", "bitcoin", "bitcoin"],
             "currency": ["usd", "usd", "usd"],
             "ingested_at": [
-                pendulum.datetime(2024, 1, 1, 12, 0, 0),
-                pendulum.datetime(2024, 1, 1, 12, 0, 0),
-                pendulum.datetime(2024, 1, 1, 12, 0, 0),
+                pendulum.datetime(2026, 3, 1, 12, 0, 0),
+                pendulum.datetime(2026, 3, 1, 12, 0, 0),
+                pendulum.datetime(2026, 3, 1, 12, 0, 0),
             ],
             "recorded_at": [
-                pendulum.datetime(2024, 1, 1, 0, 0, 0),
-                pendulum.datetime(2024, 1, 1, 1, 0, 0),
-                pendulum.datetime(2024, 1, 1, 2, 0, 0),
+                pendulum.datetime(2026, 3, 1, 0, 0, 0),
+                pendulum.datetime(2026, 3, 1, 1, 0, 0),
+                pendulum.datetime(2026, 3, 1, 2, 0, 0),
             ],
             "price": [45000.50, 45100.25, 45200.00],
             "market_cap": [850000000000.0, 852000000000.0, 853000000000.0],
@@ -111,9 +113,9 @@ def sample_silver_data():
             "coin": ["bitcoin", "bitcoin", "bitcoin"],
             "currency": ["usd", "usd", "usd"],
             "recorded_at": [
-                pendulum.datetime(2024, 1, 1, 0, 0, 0),
-                pendulum.datetime(2024, 1, 1, 1, 0, 0),
-                pendulum.datetime(2024, 1, 1, 2, 0, 0),
+                pendulum.datetime(2026, 3, 1, 0, 0, 0),
+                pendulum.datetime(2026, 3, 1, 1, 0, 0),
+                pendulum.datetime(2026, 3, 1, 2, 0, 0),
             ],
             "price": [45000.50, 45100.25, 45200.00],
             "market_cap": [850000000000.0, 852000000000.0, 853000000000.0],
@@ -132,7 +134,7 @@ def sample_gold_data():
     return pl.DataFrame(
         {
             "trade_date": pl.date_range(
-                pendulum.datetime(2024, 1, 1), pendulum.datetime(2024, 1, 31), eager=True
+                pendulum.datetime(2026, 3, 1), pendulum.datetime(2026, 3, 31), eager=True
             ),
             "coin": ["bitcoin"] * 31,
             "open_price": [45000.0 + i * 100 for i in range(31)],
@@ -155,7 +157,7 @@ def sample_multi_coin_gold_data():
     Returns:
         Polars DataFrame with multiple coins for testing multi-coin scenarios.
     """
-    dates = pl.date_range(pendulum.datetime(2024, 1, 1), pendulum.datetime(2024, 1, 10), eager=True)
+    dates = pl.date_range(pendulum.datetime(2026, 3, 1), pendulum.datetime(2026, 3, 10), eager=True)
     coins = ["bitcoin", "ethereum", "solana"]
 
     data = []
@@ -177,3 +179,32 @@ def sample_multi_coin_gold_data():
             )
 
     return pl.DataFrame(data)
+
+
+@pytest.fixture(autouse=True)
+def mock_airbyte_source():
+    """Mock PyAirbyte source to avoid real API calls in tests.
+
+    This fixture automatically mocks the airbyte.get_source function
+    to prevent tests from making real API calls to CoinGecko, which
+    could hit rate limits in CI environments.
+    """
+    mock_source = MagicMock()
+    mock_source.check.return_value = None
+    mock_source.select_streams.return_value = None
+    mock_source.get_records.return_value = iter(
+        [
+            {
+                "prices": [[[1700000000000.0, 45000.50], [1700003600000.0, 45100.25]]],
+                "market_caps": [
+                    [[1700000000000.0, 850000000000.0], [1700003600000.0, 852000000000.0]]
+                ],
+                "total_volumes": [
+                    [[1700000000000.0, 25000000000.0], [1700003600000.0, 25500000000.0]]
+                ],
+            }
+        ]
+    )
+
+    with patch("airbyte.get_source", return_value=mock_source):
+        yield mock_source
