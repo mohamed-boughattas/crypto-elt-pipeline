@@ -180,6 +180,11 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     if coin_id not in valid_coins:
         raise ValueError(f"Invalid partition key: {coin_id}. Expected one of {valid_coins}")
 
+    # Add visual separator for better log readability
+    context.log.info("\n" + "=" * 50)
+    context.log.info(f"Processing {coin_id.upper()}")
+    context.log.info("=" * 50)
+
     vs_currency = config.get_vs_currency()
     default_days = config.get_days_to_fetch()
 
@@ -199,46 +204,70 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
         context.log.info(f"🆕 Initial load for {coin_id.upper()}")
         context.log.info(f"Fetching {days_to_fetch} days of historical data.")
 
-    # 2. Extraction: Fetch raw nested data via PyAirbyte
-    raw_records = fetch_coingecko_data(coin_id, vs_currency, days_to_fetch, context.log)
-
-    # 3. Raw Validation: Verify API response structure
     try:
-        # Convert to DataFrame for validation
-        raw_df = pl.DataFrame(raw_records, strict=False)
-        validate_raw_data(raw_df)
-        context.log.info(f"✅ Raw data validation passed for {coin_id}")
-    except ValueError as e:
-        context.log.error(f"❌ Raw data validation failed for {coin_id}: {e}")
-        raise
+        # 2. Extraction: Fetch raw nested data via PyAirbyte
+        raw_records = fetch_coingecko_data(coin_id, vs_currency, days_to_fetch, context.log)
 
-    # 4. Unnest: Flatten nested lists into time-series records
-    new_df = unnest_market_data(raw_df, coin_id, vs_currency)
-    context.log.info(f"📊 Unnested {new_df.height} records for {coin_id}")
+        # 3. Raw Validation: Verify API response structure
+        try:
+            # Convert to DataFrame for validation
+            raw_df = pl.DataFrame(raw_records, strict=False)
+            validate_raw_data(raw_df)
+            context.log.info(f"✅ Raw data validation passed for {coin_id}")
+        except ValueError as e:
+            context.log.error(f"❌ Raw data validation failed for {coin_id}: {e}")
+            raise
 
-    # 5. Validate flattened data with enhanced schema
-    try:
-        validate_enhanced_data(new_df)
-        context.log.info(f"✅ Enhanced data validation passed for {coin_id}")
-    except ValueError as e:
-        context.log.error(f"❌ Enhanced data validation failed for {coin_id}: {e}")
-        raise
+        # 4. Unnest: Flatten nested lists into time-series records
+        new_df = unnest_market_data(raw_df, coin_id, vs_currency)
+        context.log.info(f"📊 Unnested {new_df.height} records for {coin_id}")
 
-    # 6. Merge: Combine with existing data if available
-    if existing_df is not None and not existing_df.is_empty():
-        final_df = merge_data(existing_df, new_df)
+        # 5. Validate flattened data with enhanced schema
+        try:
+            validate_enhanced_data(new_df)
+            context.log.info(f"✅ Enhanced data validation passed for {coin_id}")
+        except ValueError as e:
+            context.log.error(f"❌ Enhanced data validation failed for {coin_id}: {e}")
+            raise
+
+        # 6. Merge: Combine with existing data if available
+        if existing_df is not None and not existing_df.is_empty():
+            final_df = merge_data(existing_df, new_df)
+            context.log.info(
+                f"🔗 Merged {existing_df.height} existing + {new_df.height} new = {final_df.height} total records"
+            )
+        else:
+            final_df = new_df
+
+        # 7. Resample: Normalize to hourly granularity for consistency
+        records_before_resample = final_df.height
+        final_df = resample_to_hourly(final_df)
         context.log.info(
-            f"🔗 Merged {existing_df.height} existing + {new_df.height} new = {final_df.height} total records"
+            f"📊 Resampled to hourly: {records_before_resample} → {final_df.height} records"
         )
-    else:
-        final_df = new_df
 
-    # 7. Resample: Normalize to hourly granularity for consistency
-    records_before_resample = final_df.height
-    final_df = resample_to_hourly(final_df)
-    context.log.info(
-        f"📊 Resampled to hourly: {records_before_resample} → {final_df.height} records"
-    )
+    except Exception as e:
+        # Enhanced error handling with specific error messages
+        error_type = type(e).__name__
+        error_msg = str(e)
+
+        if "RateLimitError" in error_type:
+            context.log.error(f"❌ Rate limit exceeded for {coin_id}: {error_msg}")
+            raise
+        elif "ConnectionError" in error_type or "Network" in error_type:
+            context.log.error(f"❌ Network connection failed for {coin_id}: {error_msg}")
+            raise
+        elif "ValueError" in error_type and "validation" in error_msg.lower():
+            context.log.error(f"❌ Data validation failed for {coin_id}: {error_msg}")
+            raise
+        elif "RuntimeError" in error_type:
+            context.log.error(f"❌ Runtime error for {coin_id}: {error_msg}")
+            raise
+        else:
+            context.log.error(
+                f"❌ Unexpected error processing {coin_id}: {error_type}: {error_msg}"
+            )
+            raise RuntimeError(f"Failed to process data for {coin_id}: {error_msg}") from e
 
     # 8. Observability: Attach summary stats to Dagster Asset
     new_records = new_df.height
@@ -264,3 +293,96 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     )
 
     return final_df
+
+
+@dg.asset_check(asset=dg.AssetKey(["raw", "crypto_prices"]))
+def check_schema_compatibility(context: dg.AssetCheckExecutionContext) -> dg.AssetCheckResult:
+    """Verify schema hasn't drifted from expected columns.
+
+    This asset check runs after the crypto_prices asset materialization
+    to ensure the schema remains consistent and catch any breaking changes
+    from the CoinGecko API.
+
+    Returns:
+        AssetCheckResult with pass/fail status and metadata about any issues
+    """
+    expected_cols = {
+        "coin",
+        "currency",
+        "ingested_at",
+        "recorded_at",
+        "price",
+        "market_cap",
+        "volume",
+    }
+
+    try:
+        # Query actual schema from DuckDB
+        from crypto_elt_pipeline.utils.crypto_db import get_connection_with_retry
+
+        with get_connection_with_retry() as conn:
+            result = conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema = 'raw' AND table_name = 'crypto_prices'"
+            ).fetchall()
+
+        actual_cols = {row[0] for row in result}
+        missing = expected_cols - actual_cols
+        extra = actual_cols - expected_cols
+
+        if missing or extra:
+            metadata = {}
+            if missing:
+                metadata["missing_columns"] = str(list(missing))
+            if extra:
+                metadata["extra_columns"] = str(list(extra))
+
+            return dg.AssetCheckResult(
+                passed=False,
+                metadata=metadata,
+                description=f"Schema drift detected: missing={len(missing)}, extra={len(extra)}",
+            )
+        else:
+            return dg.AssetCheckResult(
+                passed=True, description="Schema is compatible with expected structure"
+            )
+
+    except Exception as e:
+        return dg.AssetCheckResult(
+            passed=False,
+            metadata={"error": str(e)},
+            description=f"Failed to check schema: {str(e)}",
+        )
+
+
+@dg.asset_check(asset=dg.AssetKey(["raw", "crypto_prices"]))
+def check_no_null_prices(context: dg.AssetCheckExecutionContext) -> dg.AssetCheckResult:
+    """Critical check: No null prices in raw data.
+
+    This asset check ensures data quality by verifying that no records
+    have null prices, which would break downstream calculations.
+
+    Returns:
+        AssetCheckResult with pass/fail status and null count
+    """
+    try:
+        from crypto_elt_pipeline.utils.crypto_db import get_connection_with_retry
+
+        with get_connection_with_retry() as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM raw.crypto_prices WHERE price IS NULL"
+            ).fetchone()
+
+        null_count = result[0] if result else 0
+
+        return dg.AssetCheckResult(
+            passed=null_count == 0,
+            metadata={"null_count": null_count},
+            description=f"No null prices: {null_count == 0}",
+        )
+
+    except Exception as e:
+        return dg.AssetCheckResult(
+            passed=False,
+            metadata={"error": str(e)},
+            description=f"Failed to check for null prices: {str(e)}",
+        )
