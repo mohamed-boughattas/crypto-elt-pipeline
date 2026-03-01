@@ -1,4 +1,12 @@
-"""Dagster definitions module.
+"""Dagster definitions package."""
 
-Contains asset definitions, schedules, and sensors for the crypto ELT pipeline.
-"""
+from crypto_elt_pipeline.defs import (
+    assets,
+    resources,
+    schedules,
+)
+from crypto_elt_pipeline.defs import (
+    sensors as monitoring_sensors,
+)
+
+__all__ = ["assets", "resources", "schedules", "monitoring_sensors"]
