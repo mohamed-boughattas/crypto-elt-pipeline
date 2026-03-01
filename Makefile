@@ -1,4 +1,4 @@
-.PHONY: help setup start pipeline pipeline-coin dev dashboard test test-cov lint lint-dbt lint-dbt-fix clean deep-clean status
+.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov lint lint-dbt lint-dbt-fix clean deep-clean status
 
 # Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -22,6 +22,7 @@ help:
 	@echo "Development:"
 	@echo "  make dev       → Launch Dagster development server"
 	@echo "  make dashboard → Launch Streamlit Dashboard"
+	@echo "  make api       → Launch FastAPI server"
 	@echo ""
 	@echo "Testing & Quality:"
 	@echo "  make test      → Run tests"
@@ -101,15 +102,19 @@ endif
 	@echo "📦 Bronze Layer: Ingesting raw data..."
 	@uv run dg launch --assets 'raw/crypto_prices' --partition $(coin)
 	@echo ""
-	@echo "🔄 Silver & Gold Layers: Running dbt transformations..."
-	@uv run dg launch --assets 'staging/stg_crypto_prices,mart/fct_crypto_candlesticks'
-	@echo ""
 	@echo "✅ Pipeline complete for $(coin)!"
+	@echo ""
+	@echo "💡 Note: dbt transformations run on full dataset. Run 'make pipeline' to process all coins."
 
 # Launch Streamlit dashboard
 dashboard:
 	@test -f $(DB_PATH) || $(MAKE) pipeline
 	@PYTHONPATH=. uv run streamlit run streamlit_dashboard/dashboard.py
+
+# Launch FastAPI server
+api:
+	@test -f $(DB_PATH) || $(MAKE) pipeline
+	@PYTHONPATH=. uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # One command to run everything
 start: pipeline dashboard
