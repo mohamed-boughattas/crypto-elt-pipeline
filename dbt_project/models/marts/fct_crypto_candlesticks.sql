@@ -52,10 +52,7 @@ ohlc_base as (
 
         -- Volume aggregation and data quality metrics
         sum(volume) as daily_volume,
-        count(*) as samples_count,
-
-        -- Calculate volatility using reusable macro
-        {{ calculate_volatility('max(price)', 'min(price)') }} as volatility_pct
+        count(*) as samples_count
 
     from source_data
     group by coin, date_trunc('day', recorded_at)::date
@@ -70,8 +67,10 @@ with_smas as (
         low_price,
         close_price,
         daily_volume,
-        volatility_pct,
         samples_count,
+
+        -- Calculate volatility using reusable macro (from high/low of the day)
+        {{ calculate_volatility('high_price', 'low_price') }} as volatility_pct,
 
         -- Calculate moving averages using reusable macro
         -- 7-day Simple Moving Average

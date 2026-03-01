@@ -37,10 +37,12 @@ sources:
             description: |
               Cryptocurrency identifier (e.g., 'bitcoin', 'ethereum').
               Represents the base currency in the trading pair.
+              Values are dynamically loaded from coins_config seed.
             tests:
               - not_null
-              - accepted_values:
-                  values: ['bitcoin', 'ethereum', 'ripple', 'solana', 'cardano', 'avalanche-2', 'polkadot', 'binancecoin', 'chainlink', 'dogecoin']
+              - relationships:
+                  to: ref('coins_config')
+                  field: coin_id
 
           - name: currency
             description: |
