@@ -15,6 +15,7 @@
 [![Dagster](https://img.shields.io/badge/orchestration-Dagster-blueviolet)](https://dagster.io/)
 [![dbt](https://img.shields.io/badge/transformation-dbt-orange)](https://www.getdbt.com/)
 [![DuckDB](https://img.shields.io/badge/database-DuckDB-yellow)](https://duckdb.org/)
+[![FastAPI](https://img.shields.io/badge/api-FastAPI-green)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-red)](https://streamlit.io/)
 [![SQLFluff](https://img.shields.io/badge/sql%20linting-SQLFluff-blue)](https://sqlfluff.com/)
 [![mypy](https://img.shields.io/badge/type%20checking-mypy-blue)](https://mypy-lang.org/)
@@ -37,12 +38,15 @@ Automated pipeline that:
 
 - **Incremental extraction** reduces API calls by ~97% on daily runs
 - **Incremental Silver layer** for efficient data processing
+- **Automated monitoring** with data freshness and quality sensors
+- **REST API** for programmatic data access
+- **Data contracts** with SLAs and quality rules
 
 ---
 
 ## 🏗️ Architecture Overview
 
-[![Architecture Diagram](docs/diagrams/diagram_architetcure.jpg)](docs/diagrams/diagram_architetcure.jpg)
+[![Architecture Diagram](docs/diagrams/diagram_architecture.jpg)](docs/diagrams/diagram_architecture.jpg)
 
 **Data Flow:**
 
@@ -50,7 +54,44 @@ Automated pipeline that:
 2. **Silver**: Flattened & cleaned (`stg_crypto_prices`) - incremental, dbt tested
 3. **Gold**: Business metrics (`fct_crypto_candlesticks`) - table with SMAs
 
+### Data Materialization Flow
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    DuckDB (crypto.duckdb)                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │
+│  │ raw schema  │→ │staging schema│→ │ mart schema          │ │
+│  │(Bronze)     │  │(Silver)      │  │ (Gold)               │ │
+│  └──────┬──────┘  └──────┬──────┘  └──────────┬───────────┘ │
+└─────────┼────────────────┼───────────────────┼──────────────┘
+          │                │                   │
+    Dagster IO        dbt runs            dbt creates
+    Manager writes    transformations     final tables
+                                              │
+                                              ▼
+                                    ┌─────────────────┐
+                                    │   Streamlit     │
+                                    │   Dashboard     │
+                                    └─────────────────┘
+```
+
 > **📚 Deep dive:** [System Design Documentation](docs/system-design.md)
+
+---
+
+## 🎬 Dashboard Demo
+
+![Streamlit Dashboard Demo](docs/diagrams/dashboard_demo.gif)
+
+The interactive dashboard features real-time crypto analytics with:
+
+- 💰 **Real-time metrics**: Live price, 24h change, market cap
+- 📈 **Interactive charts**: OHLC candlesticks with zoom & pan
+- 📊 **Volume analysis**: Trading volume trends over time
+- 📉 **Volatility tracking**: Daily volatility percentage
+- 🎯 **Key statistics**: Historical highs/lows, averages
+- 📅 **Date filtering**: Analyze specific time periods
+- 📱 **Multi-coin support**: Switch between 10 cryptocurrencies
 
 ---
 
@@ -78,6 +119,39 @@ make start
 
 - **Dagster UI**: <http://localhost:3000>
 - **Streamlit Dashboard**: <http://localhost:8501>
+- **FastAPI Server**: <http://localhost:8000>
+- **API Documentation**: <http://localhost:8000/docs>
+
+### ❄️ Cold Start (First Run)
+
+For new developers or after a fresh clone:
+
+```bash
+# 1. Ensure Docker is running
+docker info
+
+# 2. Install dependencies
+make setup
+
+# 3. Run initial data load (~3-5 min for 10 coins)
+make pipeline
+
+# 4. Launch dashboard
+make dashboard
+```
+
+### Verify Pipeline Success
+
+```bash
+make status
+# Expected output:
+# ✅ Database exists: data/crypto.duckdb
+# 📦 Database size: 15M
+# 📈 Record counts (Bronze Layer):
+#   - bitcoin: 7,200 records
+#   - ethereum: 7,200 records
+#   ...
+```
 
 > **Need detailed setup?** See [Setup Guide](docs/setup-guide.md)
 
@@ -116,6 +190,7 @@ make start
 | **Extraction**      | PyAirbyte       | Serverless data ingestion          |
 | **Transformation**  | dbt             | SQL-based modeling (Medallion)     |
 | **Storage**         | DuckDB + Polars | Embedded OLAP database             |
+| **API**             | FastAPI         | RESTful data access endpoint       |
 | **Visualization**   | Streamlit       | Interactive dashboards             |
 | **Package Manager** | uv              | Ultra-fast dependency resolution   |
 
@@ -139,6 +214,7 @@ crypto-elt-pipeline/
 │       │   ├── dbt.py            # Dagster-dbt integration
 │       │   └── external.py       # External asset definitions
 │       ├── schedules.py          # Schedules & sensors
+│       ├── sensors.py            # Data quality and freshness monitoring
 │       └── resources.py          # DuckDB-Polars I/O Manager
 │
 ├── config/
@@ -148,33 +224,60 @@ crypto-elt-pipeline/
 │   ├── models/
 │   │   ├── staging/              # Silver Layer
 │   │   │   ├── stg_crypto_prices.sql
-│   │   │   └── staging.yml       # Data quality tests & documentation
+│   │   │   ├── staging.yml       # Data quality tests & documentation
+│   │   │   └── exposures.yml     # Data exposure definitions
 │   │   └── marts/                # Gold Layer
 │   │       ├── fct_crypto_candlesticks.sql
 │   │       └── marts.yml         # OHLC validation & business logic
 │   ├── macros/
-│   │   └── financial_calculations.sql  # Reusable financial macros
+│   │   ├── financial_calculations.sql  # Reusable financial macros
+│   │   └── get_coin_list.sql     # Dynamic coin list generation
 │   ├── tests/                    # dbt test files
 │   ├── seeds/                    # dbt seed files
+│   │   └── coins_config.csv      # Coin configuration data
 │   ├── logs/                     # dbt execution logs
 │   ├── target/                   # dbt compiled artifacts
 │   └── dbt_project.yml
 │
 ├── streamlit_dashboard/          # Presentation Layer
-│   └── dashboard.py              # Interactive crypto analytics
+│   ├── dashboard.py              # Interactive crypto analytics
+│   ├── data.py                   # Data fetching utilities
+│   ├── charts.py                 # Chart generation functions
+│   ├── indicators.py             # Technical indicator calculations
+│   └── config.py                 # Dashboard configuration
 │
-├── tests/                        # Test Suite (112 tests)
-│   ├── conftest.py               # Shared fixtures
-│   ├── test_constants.py         # Path tests (14 tests)
-│   ├── test_schemas.py           # Schema validation tests (12 tests)
-│   ├── test_ingestion.py         # Ingestion tests (36 tests)
-│   ├── test_data_quality.py      # Data quality tests (15 tests)
-│   ├── test_crypto_api.py        # API client tests (8 tests)
-│   ├── test_crypto_db.py         # Database utility tests (9 tests)
-│   └── test_integration.py       # End-to-end tests (17 tests)
+  ├── tests/                        # Test Suite (91 tests)
+ │   ├── conftest.py               # Shared fixtures
+ │   ├── test_config.py            # Configuration tests (23 tests)
+ │   ├── test_schemas.py           # Schema validation tests (11 tests)
+ │   ├── test_transform.py         # Transformation tests (17 tests)
+ │   ├── test_data_quality.py      # Data quality tests (8 tests)
+ │   ├── test_crypto_db.py        # Database utility tests (9 tests)
+ │   └── test_api.py              # API endpoint tests (23 tests)
 │
-├── docs/                         # Documentation
+ ├── api/                          # REST API Layer
+│   └── main.py                   # FastAPI application with endpoints
+│
+ ├── contracts/                    # Data Contracts & SLAs
+│   └── fct_crypto_candlesticks.yaml  # Gold layer data contract
+│
+ ├── docs/                         # Documentation
+│   ├── index.md                  # Documentation index
+│   ├── system-design.md          # Architecture overview
+│   ├── data-modeling.md          # Medallion architecture
+│   ├── setup-guide.md            # Installation & configuration
+│   ├── testing.md                # Testing strategy
+│   ├── api-reference.md          # REST API documentation
+│   ├── deployment-guide.md       # Production deployment
+│   ├── security.md               # Security best practices
+│   └── adr/                      # Architecture decision records
+│       ├── 0001-use-duckdb.md    # ADR-001: Use DuckDB instead of PostgreSQL
+│       ├── 0002-use-dagster.md   # ADR-002: Use Dagster instead of Airflow
+│       ├── 0003-use-polars.md    # ADR-003: Use Polars instead of Pandas
+│       ├── 0004-use-local-dg-cli.md  # ADR-004: Use Local dg CLI instead of Docker Compose
+│       └── README.md             # ADR index and guidelines
 ├── data/                         # DuckDB database (gitignored)
+├── CONTRIBUTING.md               # Contribution guidelines
 ├── Makefile                      # Project automation
 └── pyproject.toml                # Dependencies
 ```
@@ -188,6 +291,7 @@ make start          # Full pipeline + dashboard (automated)
 make pipeline       # Run data pipeline (all coins)
 make dev            # Launch Dagster development server
 make dashboard      # Launch Streamlit dashboard
+make api            # Launch FastAPI server
 make test           # Run all tests
 make lint           # Run linting and format checks
 make clean          # Clean generated files (preserves history)
@@ -259,14 +363,27 @@ uv run pre-commit run --all-files
 
 ---
 
+## ⚠️ Limitations
+
+- **Rate Limits**: CoinGecko free tier ~10-50 calls/min; consider Pro API for higher limits
+- **Data Freshness**: Daily pipeline runs at 6 AM UTC; intra-day data may be delayed
+- **Historical Depth**: Initial load fetches 30 days; longer history requires more API calls
+- **Geographic Latency**: API response times vary based on your location relative to CoinGecko servers
+
+---
+
 ## 📚 Documentation
 
-| Document                                  | Description                                  |
-| ----------------------------------------- | -------------------------------------------- |
-| [📐 System Design](docs/system-design.md) | Detailed system design & component breakdown |
-| [🗂️ Data Modeling](docs/data-modeling.md) | Medallion architecture & dbt transformations |
-| [🚀 Setup Guide](docs/setup-guide.md)     | Detailed installation & configuration        |
-| [🧪 Testing Guide](docs/testing.md)       | Testing strategy & writing tests             |
+| Document                                         | Description                                    |
+| ------------------------------------------------ | ---------------------------------------------- |
+| [📐 System Design](docs/system-design.md)        | Detailed system design & component breakdown   |
+| [🗂️ Data Modeling](docs/data-modeling.md)        | Medallion architecture & dbt transformations   |
+| [🚀 Setup Guide](docs/setup-guide.md)            | Detailed installation & configuration          |
+| [🧪 Testing Guide](docs/testing.md)              | Testing strategy & writing tests               |
+| [🔗 API Reference](docs/api-reference.md)        | REST API documentation & usage examples        |
+| [🚀 Deployment Guide](docs/deployment-guide.md)  | Production deployment strategies               |
+| [🔒 Security Guide](docs/security.md)            | Security best practices & considerations       |
+| [🤝 Contributing](CONTRIBUTING.md)               | Contribution guidelines & development workflow |
 
 ---
 
@@ -313,16 +430,24 @@ crypto.duckdb
 
 ---
 
-## 📊 Dashboard Features
+## 🔌 REST API
 
-The Streamlit dashboard provides:
+The pipeline includes a FastAPI endpoint for programmatic data access:
 
-- 💰 **Real-time metrics**: Current price, 24h change, market cap
-- 📈 **Interactive charts**: OHLC candlesticks with zoom & pan
-- 📊 **Volume analysis**: Trading volume trends over time
-- 📉 **Volatility tracking**: Daily volatility percentage
-- 🎯 **Key statistics**: Historical highs/lows, averages
-- 📅 **Date filtering**: Analyze specific time periods
+- **OpenAPI Documentation**: <http://localhost:8000/docs>
+- **Health Check**: <http://localhost:8000/health>
+- **List Coins**: <http://localhost:8000/api/v1/coins>
+- **Get Candlesticks**: <http://localhost:8000/api/v1/candlesticks/{coin}?days=30>
+- **Latest Data**: <http://localhost:8000/api/v1/latest>
+
+```bash
+# Start the API server
+make api
+
+# Example API calls
+curl http://localhost:8000/api/v1/coins
+curl http://localhost:8000/api/v1/candlesticks/bitcoin?days=30
+```
 
 ---
 
@@ -332,10 +457,24 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) - **112 pytest tests** + dbt tests
+3. **dbt tests** for not-null & uniqueness (Silver) - **55+ dbt tests** + **91 unit tests**
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
+7. **Automated monitoring** with sensors for freshness, quality, and health
+
+---
+
+## 📐 Architecture Decision Records
+
+Key technology choices documented in [`docs/adr/`](docs/adr/README.md):
+
+- [ADR-001](docs/adr/0001-use-duckdb.md) - Use DuckDB instead of PostgreSQL
+- [ADR-002](docs/adr/0002-use-dagster.md) - Use Dagster instead of Airflow
+- [ADR-003](docs/adr/0003-use-polars.md) - Use Polars instead of Pandas
+- [ADR-004](docs/adr/0004-use-local-dg-cli.md) - Use Local dg CLI instead of Docker Compose for Development
+
+Each ADR documents the context, decision, consequences, and rationale for major architectural choices.
 
 ---
 

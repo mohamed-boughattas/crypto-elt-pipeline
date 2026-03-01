@@ -12,6 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache uv lockfile
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -48,7 +56,7 @@ jobs:
         run: uv sync
 
       - name: Run tests with coverage and junit report
-        run: uv run pytest tests/ -v --cov=src/crypto_elt_pipeline --cov-report=xml --cov-report=term --junitxml=junit.xml
+        run: uv run pytest tests/ -v --cov=src/crypto_elt_pipeline --cov-report=xml --cov-report=term --junitxml=junit.xml --tb=short
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
