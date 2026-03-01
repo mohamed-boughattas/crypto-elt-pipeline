@@ -50,6 +50,31 @@ def check_database_exists() -> bool:
     return True
 
 
+def check_gold_layer_ready() -> bool:
+    """Verify Gold layer has data before rendering dashboard.
+
+    Returns True if Gold layer tables are populated, False otherwise.
+    This function is NOT cached to allow recovery after data is loaded.
+    """
+    try:
+        # Create a new connection for this check to avoid caching issues
+        db_path = get_db_path()
+        conn = duckdb.connect(str(db_path), read_only=True)
+        result = conn.execute("SELECT COUNT(*) FROM mart.fct_crypto_candlesticks").fetchone()
+        conn.close()
+
+        if result and result[0] > 0:
+            return True
+        else:
+            st.error("❌ Gold layer tables are empty. Run `make pipeline` to load data.")
+            st.info("💡 The pipeline creates: Bronze → Silver → Gold layers")
+            return False
+    except Exception as e:
+        st.error(f"❌ Error checking Gold layer: {str(e)}")
+        st.info("💡 Run `make pipeline` to create the database and load data.")
+        return False
+
+
 @st.cache_resource
 def _create_connection() -> duckdb.DuckDBPyConnection:
     """Creates a cached, read-only connection to the DuckDB warehouse.

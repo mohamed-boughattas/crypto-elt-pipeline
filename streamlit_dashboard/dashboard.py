@@ -40,6 +40,7 @@ from streamlit_dashboard.config import (
 )
 from streamlit_dashboard.data import (
     DataError,
+    check_gold_layer_ready,
     get_available_coins,
     get_coin_colors,
     get_market_data,
@@ -115,6 +116,10 @@ with col2:
         st.rerun()
 
 # --- SINGLE COIN ANALYSIS ---
+# Check if Gold layer is ready before attempting to fetch data
+if not check_gold_layer_ready():
+    st.stop()
+
 # Get data for the primary selected coin
 try:
     df = get_market_data(selected_coin, start_date, end_date)
