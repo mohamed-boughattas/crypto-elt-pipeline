@@ -52,6 +52,7 @@ def get_connection_with_retry(
                 ) from e
         except Exception as e:
             raise RuntimeError(f"Unexpected error connecting to database: {str(e)}") from e
+    raise RuntimeError("Failed to connect to database: max retries exceeded")
 
 
 def get_latest_timestamp(coin_id: str) -> pendulum.DateTime | None:

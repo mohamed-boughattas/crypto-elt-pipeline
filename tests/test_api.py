@@ -67,7 +67,12 @@ class TestAPIEndpoints:
 
     def test_health_check_database_connection_failed(self, client):
         """Test health check when database connection fails."""
-        with patch("api.main.get_db_connection") as mock_ctx:
+        with (
+            patch("api.main.DUCKDB_PATH") as mock_path,
+            patch("api.main.get_db_connection") as mock_ctx,
+        ):
+            mock_path.exists.return_value = True
+            mock_path.stat.return_value.st_size = 1024 * 1024  # 1MB
             mock_ctx.side_effect = Exception("Connection failed")
 
             response = client.get("/health")
