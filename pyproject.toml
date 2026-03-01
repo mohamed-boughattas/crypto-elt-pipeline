@@ -1,6 +1,6 @@
 [project]
 name = "crypto_elt_pipeline"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.12,<3.15"
 version = "0.1.0"
 dependencies = [
     "airbyte>=0.38.0",
@@ -9,6 +9,7 @@ dependencies = [
     "dagster-duckdb-polars>=0.28.14",
     "dbt-duckdb>=1.10.0",
     "duckdb>=1.4.3",
+    "fastapi>=0.104.0",
     "pandas>=2.2.3",
     "pandera[polars]>=0.29.0",
     "pendulum>=3.0.0",
@@ -16,6 +17,7 @@ dependencies = [
     "polars>=1.38.1",
     "pyyaml>=6.0.0",
     "streamlit>=1.54.0",
+    "uvicorn>=0.24.0",
     # Pin chardet to avoid RequestsDependencyWarning (sqlfluff installs chardet 6.x which exceeds requests' limit)
     "chardet>=3.0.2,<6.0.0",
 ]
@@ -69,7 +71,7 @@ registry_modules = ["crypto_elt_pipeline.components.*"]
 # --- Linting & Formatting (ruff) ---
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
