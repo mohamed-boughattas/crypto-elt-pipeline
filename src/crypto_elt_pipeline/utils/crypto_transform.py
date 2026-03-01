@@ -57,8 +57,18 @@ def validate_raw_data(raw_df: pl.DataFrame) -> None:
 
     Raises:
         pandera.errors.SchemaError: If validation fails
+        ValueError: If raw data is invalid or malformed
+        RuntimeError: If validation fails unexpectedly
     """
-    RawMarketChartSchema.validate(raw_df)
+    try:
+        if raw_df.is_empty():
+            raise ValueError("Raw data is empty - no API response received")
+
+        RawMarketChartSchema.validate(raw_df)
+    except pa.errors.SchemaError as e:
+        raise ValueError(f"Raw data validation failed: {str(e)}") from e
+    except Exception as e:
+        raise RuntimeError(f"Unexpected error during raw data validation: {str(e)}") from e
 
 
 def validate_enhanced_data(df: pl.DataFrame) -> None:

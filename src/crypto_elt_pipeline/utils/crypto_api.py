@@ -178,8 +178,57 @@ def fetch_coingecko_data(
                             f"Rate limit exceeded for {coin_id} after {max_retries} attempts"
                         ) from e
 
-                # For other errors, just re-raise the original exception
-                raise
+                # For other errors, provide more specific error messages and graceful degradation
+                if "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2**attempt), max_delay)
+                        jitter = delay * (0.5 + random.random())
+                        logger.warning(
+                            f"⚠️ Network/connection error for {coin_id} (attempt {attempt + 1}/{max_retries}). "
+                            f"Waiting {jitter:.1f}s before retry..."
+                        )
+                        time.sleep(jitter)
+                        continue
+                    else:
+                        logger.error(
+                            f"❌ Network error for {coin_id}: Unable to connect to API after {max_retries} attempts"
+                        )
+                        raise ConnectionError(
+                            f"Unable to connect to CoinGecko API for {coin_id} after {max_retries} attempts"
+                        ) from e
+
+                elif "invalid" in error_msg or "not found" in error_msg or "404" in error_msg:
+                    logger.error(f"❌ Invalid coin ID or data not available for {coin_id}")
+                    raise ValueError(f"Invalid coin ID '{coin_id}' or data not available") from e
+
+                elif "docker" in error_msg or "container" in error_msg:
+                    logger.error(f"❌ Docker/container error for {coin_id}: {str(e)}")
+                    raise RuntimeError(
+                        f"Docker container error for {coin_id}. Please check Docker is running and the connector is available."
+                    ) from e
+
+                elif "memory" in error_msg or "out of memory" in error_msg:
+                    logger.error(f"❌ Memory error for {coin_id}: {str(e)}")
+                    raise MemoryError(
+                        f"Insufficient memory to process {coin_id} data. Try reducing batch size or available memory."
+                    ) from e
+
+                else:
+                    # Generic error with detailed context
+                    logger.error(
+                        f"❌ Unexpected error for {coin_id} (attempt {attempt + 1}/{max_retries + 1}): {str(e)}"
+                    )
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2**attempt), max_delay)
+                        jitter = delay * (0.5 + random.random())
+                        logger.warning(f"Waiting {jitter:.1f}s before retry...")
+                        time.sleep(jitter)
+                        continue
+                    else:
+                        raise RuntimeError(
+                            f"Failed to fetch data for {coin_id} after {max_retries + 1} attempts. "
+                            f"Last error: {str(e)}"
+                        ) from e
 
         # This should never be reached but satisfies mypy
         raise ValueError(f"Unexpected error fetching data for {coin_id}")
