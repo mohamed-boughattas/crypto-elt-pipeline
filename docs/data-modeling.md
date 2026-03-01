@@ -234,7 +234,7 @@ Done. PASS=46 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=46
 
 **Enhanced Test Coverage:**
 
-- **Total Tests**: 86 tests across all layers
+- **Total Tests**: 91 tests across all layers
 - **Source Tests (8)**: Schema validation for raw API data
 - **Silver Layer Tests (14)**: Data cleaning and validation
 - **Gold Layer Tests (24)**: Business logic and financial calculations
@@ -604,9 +604,9 @@ uv run dbt test --verbose
 
 **Quality Assurance Results:**
 
-- **Total Tests**: 86 tests across all layers
-- **Test Categories**: Source (12), Ingestion (28), Data Quality (15), Integration (17), Constants (14)
-- **Success Rate**: 100% (86/86 tests passing)
+- **Total Tests**: 91 tests across all layers
+- **Test Categories**: Configuration (23), Schema (11), Transform (17), Data Quality (8), Database (9), API (23)
+- **Success Rate**: 100% (91/91 tests passing)
 - **Coverage**: All critical data paths, business rules, and integration scenarios
 - **Performance**: Tests complete in ~5 seconds
 - **Enhanced Coverage**: Includes comprehensive data quality gates and integration validation

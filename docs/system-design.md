@@ -194,8 +194,8 @@ CRYPTO_PARTITIONS = dg.StaticPartitionsDefinition(
 ┌─────────────────────────────────────────────────────────────┐
 │ coin: "bitcoin"                                             │
 │ currency: "usd"                                             │
-│ ingested_at: 2024-01-15T10:30:00                           │
-│ recorded_at: 2024-01-15T10:00:00                           │
+│ ingested_at: 2026-03-01T10:30:00                           │
+│ recorded_at: 2026-03-01T10:00:00                           │
 │ price: 42500.00                                            │
 │ market_cap: 850000000000.00                                │
 │ volume: 25000000000.00                                     │
@@ -437,7 +437,7 @@ fig = go.Figure(data=[go.Candlestick(
 - 10 cryptocurrencies, multiple years of data
 - All tests passing with 100% success rate
 - SQLFluff compliant with 0 warnings
-- **67 total tests** covering data quality, transformations, and integration
+- **91 total tests** covering data quality, transformations, and integration
 - **Enhanced data quality gates** with comprehensive validation
 
 ### 3. DuckDB Columnar Storage
@@ -459,7 +459,7 @@ fig = go.Figure(data=[go.Candlestick(
 - **Rate limiting with exponential backoff**: Prevents API throttling and improves reliability
 - **Memory-efficient data processing**: Optimized DataFrame operations and connection pooling
 - **Smart refresh logic**: Always re-processes current day for intra-day accuracy
-- **Comprehensive test coverage**: 86 tests covering data quality, transformations, and integration
+- **Comprehensive test coverage**: 91 tests covering data quality, transformations, and integration
 - **Strict type checking**: mypy integration with CI for better code quality
 - **Enhanced error handling**: Better logging and user feedback throughout the pipeline
 - **Code quality automation**: Pre-commit hooks with Ruff, SQLFluff, and mypy
