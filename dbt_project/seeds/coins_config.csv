@@ -1,0 +1,11 @@
+coin_id,coin_name,symbol
+bitcoin,Bitcoin,BTC
+ethereum,Ethereum,ETH
+ripple,XRP,XRP
+solana,Solana,SOL
+cardano,Cardano,ADA
+avalanche-2,Avalanche,AVAX
+polkadot,Polkadot,DOT
+binancecoin,BNB,BNB
+chainlink,Chainlink,LINK
+dogecoin,Dogecoin,DOGE
