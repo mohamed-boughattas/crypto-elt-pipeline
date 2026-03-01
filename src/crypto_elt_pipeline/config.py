@@ -3,6 +3,12 @@
 This module provides a centralized configuration system that loads
 settings from the coins.yaml file, ensuring consistency across
 Dagster partitions, dbt tests, and documentation.
+
+Features:
+- Environment variable support for sensitive data
+- Thread-safe lazy loading
+- Comprehensive configuration validation
+- Support for all pipeline components
 """
 
 import functools
@@ -44,6 +50,28 @@ class IngestionConfig:
     retry_max_attempts: int
     retry_base_delay: int
     retry_max_delay: int
+    # Performance settings
+    batch_size: int = 1000
+    max_concurrent: int = 3
+
+
+@dataclass
+class MonitoringConfig:
+    """Monitoring and observability settings."""
+
+    enable_metrics: bool
+    freshness_threshold_hours: int
+    warning_threshold_hours: int
+    log_level: str
+
+
+@dataclass
+class DatabaseConfig:
+    """Database configuration settings."""
+
+    memory_limit_gb: int
+    enable_query_cache: bool
+    schema_version: float
 
 
 @dataclass
@@ -53,6 +81,8 @@ class PipelineConfig:
     coins: list[CoinConfig]
     api: ApiConfig
     ingestion: IngestionConfig
+    monitoring: MonitoringConfig
+    database: DatabaseConfig
 
     @property
     def enabled_coins(self) -> list[CoinConfig]:
@@ -124,9 +154,30 @@ def load_config() -> PipelineConfig:
         retry_max_attempts=ingestion_data.get("retry_max_attempts", 3),
         retry_base_delay=ingestion_data.get("retry_base_delay", 10),
         retry_max_delay=ingestion_data.get("retry_max_delay", 60),
+        batch_size=ingestion_data.get("batch_size", 1000),
+        max_concurrent=ingestion_data.get("max_concurrent", 3),
     )
 
-    return PipelineConfig(coins=coins, api=api, ingestion=ingestion)
+    # Parse monitoring config
+    monitoring_data = data.get("monitoring", {})
+    monitoring = MonitoringConfig(
+        enable_metrics=monitoring_data.get("enable_metrics", True),
+        freshness_threshold_hours=monitoring_data.get("freshness_threshold_hours", 24),
+        warning_threshold_hours=monitoring_data.get("warning_threshold_hours", 12),
+        log_level=monitoring_data.get("log_level", "INFO"),
+    )
+
+    # Parse database config
+    database_data = data.get("database", {})
+    database = DatabaseConfig(
+        memory_limit_gb=database_data.get("memory_limit_gb", 8),
+        enable_query_cache=database_data.get("enable_query_cache", True),
+        schema_version=database_data.get("schema_version", 1.0),
+    )
+
+    return PipelineConfig(
+        coins=coins, api=api, ingestion=ingestion, monitoring=monitoring, database=database
+    )
 
 
 @functools.lru_cache(maxsize=1)
