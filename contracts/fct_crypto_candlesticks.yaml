@@ -1,0 +1,359 @@
+# Data Contract: fct_crypto_candlesticks
+# Gold Layer - Daily OHLC Candlestick Data
+
+contract:
+  name: fct_crypto_candlesticks
+  version: 1.0.0
+  owner: data-engineering
+  status: active
+  last_updated: 2026-03-01
+  
+  description: |
+    Daily OHLC (Open, High, Low, Close) candlestick data with technical
+    indicators for cryptocurrency market analysis. This is the Gold layer of the
+    ELT pipeline, providing business-ready analytics data.
+  
+  data_product: crypto_market_analytics
+  
+  sla:
+    freshness:
+      max_latency_hours: 24
+      description: "Data should be available within 24 hours of market close"
+    
+    availability:
+      target: 99.0
+      description: "API should be available 99% of the time during trading hours"
+    
+    completeness:
+      min_completeness_pct: 99.5
+      description: "At least 99.5% of expected records should be present"
+    
+    accuracy:
+      max_price_deviation_pct: 0.01
+      description: "Prices should be within 0.01% of source data"
+  
+  schema:
+    grain: "One row per (coin, trade_date)"
+    partitioning: ["coin"]
+    clustering: ["coin", "trade_date"]
+    
+    columns:
+      - name: coin
+        type: string
+        nullable: false
+        description: "Cryptocurrency identifier (e.g., 'bitcoin', 'ethereum')"
+        constraints:
+          - not_null
+          - allowed_values: ["bitcoin", "ethereum", "ripple", "solana", "cardano", "avalanche-2", "polkadot", "binancecoin", "chainlink", "dogecoin"]
+        pii: false
+        classification: public
+      
+      - name: trade_date
+        type: date
+        nullable: false
+        description: "Trading date (UTC)"
+        constraints:
+          - not_null
+          - unique: ["coin", "trade_date"]
+        pii: false
+        classification: public
+      
+      - name: open_price
+        type: decimal
+        nullable: false
+        precision: 20
+        scale: 8
+        description: "Opening price for the day (first price)"
+        constraints:
+          - not_null
+          - positive
+          - min_value: 0.00000001
+        pii: false
+        classification: public
+      
+      - name: high_price
+        type: decimal
+        nullable: false
+        precision: 20
+        scale: 8
+        description: "Highest price for the day"
+        constraints:
+          - not_null
+          - positive
+          - greater_than_or_equal_to: "open_price"
+        pii: false
+        classification: public
+      
+      - name: low_price
+        type: decimal
+        nullable: false
+        precision: 20
+        scale: 8
+        description: "Lowest price for the day"
+        constraints:
+          - not_null
+          - positive
+          - less_than_or_equal_to: "open_price"
+        pii: false
+        classification: public
+      
+      - name: close_price
+        type: decimal
+        nullable: false
+        precision: 20
+        scale: 8
+        description: "Closing price for the day (last price)"
+        constraints:
+          - not_null
+          - positive
+          - greater_than_or_equal_to: "low_price"
+          - less_than_or_equal_to: "high_price"
+        pii: false
+        classification: public
+      
+      - name: daily_volume
+        type: decimal
+        nullable: false
+        precision: 20
+        scale: 2
+        description: "Total trading volume for the day in USD"
+        constraints:
+          - not_null
+          - non_negative
+          - min_value: 0
+        pii: false
+        classification: public
+      
+      - name: volatility_pct
+        type: decimal
+        nullable: false
+        precision: 10
+        scale: 2
+        description: "Daily volatility percentage (high - low) / close"
+        constraints:
+          - not_null
+          - non_negative
+          - min_value: 0
+          - max_value: 100
+        pii: false
+        classification: public
+      
+      - name: samples_count
+        type: integer
+        nullable: false
+        description: "Number of hourly samples used for daily aggregation"
+        constraints:
+          - not_null
+          - positive
+          - min_value: 1
+          - max_value: 24
+        pii: false
+        classification: public
+      
+      - name: sma_7
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "7-day Simple Moving Average of close_price"
+        constraints:
+          - positive
+        pii: false
+        classification: public
+      
+      - name: sma_25
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "25-day Simple Moving Average of close_price"
+        constraints:
+          - positive
+        pii: false
+        classification: public
+      
+      - name: bb_middle
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "Bollinger Band middle (20-day SMA)"
+        constraints:
+          - positive
+        pii: false
+        classification: public
+      
+      - name: bb_upper
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "Bollinger Band upper (20-day SMA + 2*stddev)"
+        constraints:
+          - positive
+          - greater_than_or_equal_to: "bb_middle"
+        pii: false
+        classification: public
+      
+      - name: bb_lower
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "Bollinger Band lower (20-day SMA - 2*stddev)"
+        constraints:
+          - positive
+          - less_than_or_equal_to: "bb_middle"
+        pii: false
+        classification: public
+      
+      - name: bb_width
+        type: decimal
+        nullable: true
+        precision: 10
+        scale: 2
+        description: "Bollinger Band width percentage ((upper - lower) / middle * 100)"
+        constraints:
+          - non_negative
+          - min_value: 0
+        pii: false
+        classification: public
+      
+      - name: bb_position
+        type: decimal
+        nullable: true
+        precision: 5
+        scale: 2
+        description: "Position within Bollinger Bands ((close - lower) / (upper - lower))"
+        constraints:
+          - min_value: 0
+          - max_value: 1
+        pii: false
+        classification: public
+      
+      - name: daily_change_pct
+        type: decimal
+        nullable: true
+        precision: 10
+        scale: 2
+        description: "Daily price change percentage ((close - open) / open * 100)"
+        constraints:
+          - min_value: -100
+          - max_value: 100
+        pii: false
+        classification: public
+      
+      - name: price_range
+        type: decimal
+        nullable: true
+        precision: 20
+        scale: 8
+        description: "Daily price range (high - low)"
+        constraints:
+          - non_negative
+          - min_value: 0
+        pii: false
+        classification: public
+  
+  quality_rules:
+    - name: ohlc_consistency
+      description: "OHLC prices must be consistent (low <= open,close <= high)"
+      severity: error
+      sql: |
+        SELECT COUNT(*) 
+        FROM mart.fct_crypto_candlesticks
+        WHERE low_price > open_price 
+           OR low_price > close_price
+           OR high_price < open_price
+           OR high_price < close_price
+      expected_result: 0
+    
+    - name: positive_prices
+      description: "All prices must be positive"
+      severity: error
+      sql: |
+        SELECT COUNT(*)
+        FROM mart.fct_crypto_candlesticks
+        WHERE open_price <= 0 
+           OR high_price <= 0 
+           OR low_price <= 0 
+           OR close_price <= 0
+      expected_result: 0
+    
+    - name: volume_non_negative
+      description: "Volume must be non-negative"
+      severity: error
+      sql: |
+        SELECT COUNT(*)
+        FROM mart.fct_crypto_candlesticks
+        WHERE daily_volume < 0
+      expected_result: 0
+    
+    - name: samples_count_valid
+      description: "Samples count must be between 1 and 24"
+      severity: error
+      sql: |
+        SELECT COUNT(*)
+        FROM mart.fct_crypto_candlesticks
+        WHERE samples_count < 1 OR samples_count > 24
+      expected_result: 0
+  
+  consumers:
+    - name: crypto_dashboard
+      type: dashboard
+      description: "Streamlit dashboard for market analysis"
+      contact: data-engineering@example.com
+      sla_requirements:
+        - "Real-time data access"
+        - "Sub-second query response times"
+    
+    - name: crypto_api
+      type: api
+      description: "FastAPI REST endpoint for data access"
+      contact: data-engineering@example.com
+      sla_requirements:
+        - "99% uptime during trading hours"
+        - "< 100ms API response time"
+  
+  change_management:
+    breaking_changes_require:
+      - approval from data-engineering
+      - notification to all consumers
+      - minimum 2-week notice period
+    
+    non_breaking_changes:
+      - approval from data-engineering
+      - documentation update
+    
+    schema_changes:
+      - addition: allowed with approval
+      - removal: requires breaking change process
+      - modification: requires breaking change process
+  
+  monitoring:
+    metrics:
+      - name: row_count
+        description: "Total number of rows in the table"
+        query: "SELECT COUNT(*) FROM mart.fct_crypto_candlesticks"
+        alert_threshold: "decrease > 10%"
+      
+      - name: freshness_lag
+        description: "Time since latest data update"
+        query: "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(trade_date))) / 3600 FROM mart.fct_crypto_candlesticks"
+        alert_threshold: "> 24 hours"
+      
+      - name: null_percentage
+        description: "Percentage of null values in critical columns"
+        query: |
+          SELECT 
+            (SUM(CASE WHEN close_price IS NULL THEN 1 ELSE 0 END)::FLOAT / COUNT(*)) * 100
+          FROM mart.fct_crypto_candlesticks
+        alert_threshold: "> 0%"
+    
+    alerts:
+      - type: email
+        recipients: ["data-engineering@example.com"]
+        conditions:
+          - freshness_lag > 24 hours
+          - null_percentage > 0%
+          - row_count decrease > 10%
