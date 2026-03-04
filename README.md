@@ -18,7 +18,7 @@
 [![FastAPI](https://img.shields.io/badge/api-FastAPI-green)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-red)](https://streamlit.io/)
 [![SQLFluff](https://img.shields.io/badge/sql%20linting-SQLFluff-blue)](https://sqlfluff.com/)
-[![mypy](https://img.shields.io/badge/type%20checking-mypy-blue)](https://mypy-lang.org/)
+[![pyright](https://img.shields.io/badge/type%20checking-pyright-blue)](https://github.com/microsoft/pyright)
 
 ---
 
