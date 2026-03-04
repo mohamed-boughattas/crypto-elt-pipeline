@@ -12,14 +12,11 @@ repos:
       - id: ruff-format
 
   # Type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.390
     hooks:
-      - id: mypy
-        args: [--ignore-missing-imports]
+      - id: pyright
         files: ^src/crypto_elt_pipeline/
-        additional_dependencies:
-          - types-PyYAML
 
   # SQLFluff - SQL linter for dbt models
   - repo: https://github.com/sqlfluff/sqlfluff
