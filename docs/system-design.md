@@ -460,9 +460,9 @@ fig = go.Figure(data=[go.Candlestick(
 - **Memory-efficient data processing**: Optimized DataFrame operations and connection pooling
 - **Smart refresh logic**: Always re-processes current day for intra-day accuracy
 - **Comprehensive test coverage**: 91 tests covering data quality, transformations, and integration
-- **Strict type checking**: mypy integration with CI for better code quality
+- **Strict type checking**: pyright integration with CI for better code quality
 - **Enhanced error handling**: Better logging and user feedback throughout the pipeline
-- **Code quality automation**: Pre-commit hooks with Ruff, SQLFluff, and mypy
+- **Code quality automation**: Pre-commit hooks with Ruff, SQLFluff, and pyright
 - **Data quality gates**: Multi-layered validation from ingestion to Gold layer
 
 ---
