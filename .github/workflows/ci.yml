@@ -38,8 +38,8 @@ jobs:
       - name: Run SQLFluff on dbt models
         run: uv run sqlfluff lint dbt_project/models --config dbt_project/.sqlfluff
 
-      - name: Run mypy type checking
-        run: uv run mypy src/crypto_elt_pipeline --ignore-missing-imports
+      - name: Run pyright type checking
+        run: uv run pyright src/crypto_elt_pipeline/
 
   test:
     runs-on: ubuntu-latest
