@@ -1,4 +1,4 @@
-.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov lint lint-dbt lint-dbt-fix clean deep-clean status
+.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov typecheck lint lint-dbt lint-dbt-fix clean deep-clean status
 
 # Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -27,6 +27,7 @@ help:
 	@echo "Testing & Quality:"
 	@echo "  make test      → Run tests"
 	@echo "  make test-cov  → Run tests with coverage report"
+	@echo "  make typecheck → Run type checking with pyright"
 	@echo "  make test-dbt  → Run dbt tests"
 	@echo "  make lint      → Run linting and format checks"
 	@echo "  make lint-dbt  → Lint dbt models with SQLFluff"
@@ -130,6 +131,10 @@ test: setup
 # Run tests with coverage
 test-cov: setup
 	@uv run pytest tests/ -v --cov=src/crypto_elt_pipeline --cov-report=term-missing
+
+# Run type checking
+typecheck: setup
+	@uv run pyright src/crypto_elt_pipeline/
 
 # Run linting and format checks
 lint: setup
