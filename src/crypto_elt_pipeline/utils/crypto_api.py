@@ -1,6 +1,6 @@
 """CoinGecko API client and data fetching utilities.
 
-This module provides the API client logic for fetching cryptocurrency data
+This module provides API client logic for fetching cryptocurrency data
 from CoinGecko via PyAirbyte, including retry logic and rate limiting handling.
 """
 
@@ -54,7 +54,7 @@ def fetch_coingecko_data(
     start_date = yesterday.subtract(days=days - 1).strftime("%d-%m-%Y")
     end_date = yesterday.strftime("%d-%m-%Y")
 
-    # Validate days is one of the allowed values for CoinGecko connector
+    # Validate days is one of allowed values for CoinGecko connector
     allowed_days = ["1", "7", "14", "30", "90", "180", "365", "max"]
     days_str = str(days)
     if days_str not in allowed_days:
@@ -144,7 +144,7 @@ def fetch_coingecko_data(
                 execution_time = time.time() - start_time
                 error_msg = str(e).lower()
 
-                # Log the full error for debugging
+                # Log full error for debugging
                 logger.error(f"Airbyte connector error for {coin_id}: {str(e)}")
 
                 # Check for rate limit specific errors
@@ -204,7 +204,7 @@ def fetch_coingecko_data(
                 elif "docker" in error_msg or "container" in error_msg:
                     logger.error(f"❌ Docker/container error for {coin_id}: {str(e)}")
                     raise RuntimeError(
-                        f"Docker container error for {coin_id}. Please check Docker is running and the connector is available."
+                        f"Docker container error for {coin_id}. Please check Docker is running and connector is available."
                     ) from e
 
                 elif "memory" in error_msg or "out of memory" in error_msg:
@@ -230,7 +230,7 @@ def fetch_coingecko_data(
                             f"Last error: {str(e)}"
                         ) from e
 
-        # This should never be reached but satisfies mypy
+        # This should never be reached but satisfies pyright
         raise ValueError(f"Unexpected error fetching data for {coin_id}")
 
     # Execute fetch with retry logic
