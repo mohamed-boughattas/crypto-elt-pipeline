@@ -134,8 +134,8 @@ jobs:
       - name: Run bandit security linter
         continue-on-error: true
         run: |
-          uv run bandit -c .bandit -f json -o bandit-report.json
-          uv run bandit -c .bandit
+          uv run bandit -r . -c .bandit -f json -o bandit-report.json
+          uv run bandit -r . -c .bandit -ll
 
       - name: Upload Bandit results
         if: always()
