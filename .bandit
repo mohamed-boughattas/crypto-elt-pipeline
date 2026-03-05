@@ -1,2 +1,13 @@
-[bandit]
-exclude_dirs = /.venv/,/venv/,/env/,/.git/,/.pytest_cache/,/__pycache__/,/.tox/,/.eggs/,/dist/,/build/,/node_modules/,/.mypy_cache/
+exclude_dirs:
+  - /.venv/
+  - /venv/
+  - /env/
+  - /.git/
+  - /.pytest_cache/
+  - /__pycache__/
+  - /.tox/
+  - /.eggs/
+  - /dist/
+  - /build/
+  - /node_modules/
+  - /.mypy_cache/
