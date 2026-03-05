@@ -1,0 +1,15 @@
+# pip-audit configuration
+# This file suppresses known vulnerabilities that cannot be fixed due to
+# transitive dependency constraints from airbyte==0.38.0
+
+[ignore]
+vulnerabilities = [
+    "CVE-2026-26007",
+    "CVE-2025-14009",
+    "GHSA-w476-p2h3-79g9",
+    "CVE-2025-13327",
+    "CVE-2025-69872",
+]
+
+[[ignore.package]]
+name = "crypto-elt-pipeline"
