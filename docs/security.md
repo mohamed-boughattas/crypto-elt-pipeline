@@ -42,7 +42,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -124,16 +124,16 @@ def load_auth_config():
     if not config_path.exists():
         st.error("Authentication configuration not found")
         st.stop()
-    
+
     with open(config_path) as file:
         config = yaml.load(file, Loader=yaml.SafeLoader)
-    
+
     return config
 
 def setup_authentication():
     """Setup Streamlit authentication."""
     config = load_auth_config()
-    
+
     authenticator = Authenticate(
         config['credentials'],
         config['cookie']['name'],
@@ -141,9 +141,9 @@ def setup_authentication():
         config['cookie']['expiry_days'],
         config['preauthorized']
     )
-    
+
     name, authentication_status, username = authenticator.login('Login', 'main')
-    
+
     if authentication_status:
         st.session_state['name'] = name
         st.session_state['authentication_status'] = authentication_status
@@ -183,13 +183,13 @@ def get_secure_database_url():
     db_name = os.getenv('DB_NAME', 'crypto')
     db_user = os.getenv('DB_USER')
     db_password = os.getenv('DB_PASSWORD')
-    
+
     if not all([db_user, db_password]):
         raise ValueError("Database credentials not configured")
-    
+
     # URL encode password to handle special characters
     encoded_password = quote_plus(db_password)
-    
+
     # PostgreSQL with SSL
     return f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}?sslmode=require"
 
@@ -198,15 +198,15 @@ def validate_database_connection():
     try:
         import psycopg2
         conn = psycopg2.connect(get_secure_database_url())
-        
+
         # Check SSL connection
         with conn.cursor() as cur:
             cur.execute("SELECT ssl_is_used();")
             ssl_used = cur.fetchone()[0]
-            
+
         if not ssl_used:
             raise ValueError("SSL connection required")
-            
+
         conn.close()
         return True
     except Exception as e:
@@ -227,11 +227,11 @@ class DataEncryptor:
             self.key = Fernet.generate_key()
             # In production, store this key securely
         self.cipher_suite = Fernet(self.key)
-    
+
     def encrypt_data(self, data: str) -> bytes:
         """Encrypt sensitive data."""
         return self.cipher_suite.encrypt(data.encode())
-    
+
     def decrypt_data(self, encrypted_data: bytes) -> str:
         """Decrypt sensitive data."""
         return self.cipher_suite.decrypt(encrypted_data).decode()
@@ -254,19 +254,19 @@ from starlette.responses import Response
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        
+
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = "default-src 'self'"
-        
+
         return response
 
 def setup_security(app: FastAPI):
     """Setup security middleware."""
-    
+
     # CORS configuration
     app.add_middleware(
         CORSMiddleware,
@@ -275,7 +275,7 @@ def setup_security(app: FastAPI):
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
-    
+
     # Security headers
     app.add_middleware(SecurityHeadersMiddleware)
 ```
@@ -404,7 +404,7 @@ limiter = Limiter(
 
 def setup_rate_limiting(app: FastAPI):
     """Setup rate limiting for the API."""
-    
+
     @app.exception_handler(RateLimitExceeded)
     async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         return HTTPException(
@@ -412,14 +412,14 @@ def setup_rate_limiting(app: FastAPI):
             detail="Rate limit exceeded. Please try again later.",
             headers={"Retry-After": str(exc.retry_after)},
         )
-    
+
     # Apply rate limits to endpoints
     @app.get("/api/v1/candlesticks/{coin}")
     @limiter.limit("100/minute")
     async def get_candlesticks(coin: str, days: int = 30):
         # Endpoint implementation
         pass
-    
+
     @app.get("/api/v1/latest")
     @limiter.limit("50/minute")
     async def get_latest():
@@ -438,16 +438,16 @@ import ipaddress
 class IPWhitelistMiddleware:
     def __init__(self, allowed_ips: List[str]):
         self.allowed_ips = [ipaddress.ip_network(ip) for ip in allowed_ips]
-    
+
     async def __call__(self, request: Request, call_next):
         client_ip = request.client.host
-        
+
         # Check if IP is allowed
         is_allowed = any(ipaddress.ip_address(client_ip) in network for network in self.allowed_ips)
-        
+
         if not is_allowed:
             raise HTTPException(status_code=403, detail="IP address not allowed")
-        
+
         response = await call_next(request)
         return response
 
@@ -455,6 +455,43 @@ class IPWhitelistMiddleware:
 allowed_ips = ["192.168.1.0/24", "10.0.0.0/8"]
 app.add_middleware(IPWhitelistMiddleware, allowed_ips=allowed_ips)
 ```
+
+---
+
+## 🔒 Automated Security Scanning
+
+### Code-Level Security (Bandit)
+
+Bandit is a static code analyzer that finds common security issues in Python code. It's integrated into the CI/CD pipeline and can be run locally.
+
+```bash
+# Run bandit with project configuration
+make security
+# Or directly:
+uv run bandit -r . -ll -c .bandit
+```
+
+**Configuration**: `.bandit` file excludes directories like `.venv`, `__pycache__`, etc.
+
+**Findings**: The project currently has 3 properly suppressed findings via `# nosec` comments:
+
+- **B104**: Binding to `0.0.0.0` (intentional for Docker/container deployments)
+- **B608**: SQL queries with hardcoded schema/table names (values from internal tuples, not user input)
+
+**Integration**: Bandit runs automatically in CI/CD pipeline on every push and PR.
+
+### Dependency Security (pip-audit)
+
+pip-audit scans Python dependencies for known security vulnerabilities.
+
+```bash
+# Run pip-audit
+uv run pip-audit --skip-editable
+```
+
+**Configuration**: `.pip-audit.toml` controls vulnerability reporting behavior.
+
+**Integration**: pip-audit runs automatically in CI/CD pipeline on every push and PR.
 
 ---
 
@@ -473,7 +510,7 @@ class SecureLogger:
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.INFO)
-        
+
         # Create handler
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
@@ -481,7 +518,7 @@ class SecureLogger:
         )
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-    
+
     def log_access(self, request, user_id=None, action=None):
         """Log API access securely."""
         log_data = {
@@ -493,10 +530,10 @@ class SecureLogger:
             "method": request.method,
             "request_id": secrets.token_hex(8)
         }
-        
+
         # Remove sensitive data before logging
         self.logger.info(f"API Access: {json.dumps(log_data)}")
-    
+
     def log_security_event(self, event_type, details):
         """Log security events."""
         security_log = {
@@ -505,7 +542,7 @@ class SecureLogger:
             "details": details,
             "severity": "HIGH" if event_type in ["AUTH_FAILURE", "UNAUTHORIZED_ACCESS"] else "MEDIUM"
         }
-        
+
         self.logger.warning(f"Security Event: {json.dumps(security_log)}")
 
 # Usage
@@ -529,7 +566,7 @@ class AuditTrail:
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.init_db()
-    
+
     def init_db(self):
         """Initialize audit database."""
         with sqlite3.connect(self.db_path) as conn:
@@ -545,8 +582,8 @@ class AuditTrail:
                     details TEXT
                 )
             """)
-    
-    def log_action(self, user_id: Optional[str], action: str, resource: str, 
+
+    def log_action(self, user_id: Optional[str], action: str, resource: str,
                    ip_address: str, success: bool, details: Optional[str] = None):
         """Log user action."""
         with sqlite3.connect(self.db_path) as conn:
@@ -554,22 +591,22 @@ class AuditTrail:
                 INSERT INTO audit_log (timestamp, user_id, action, resource, ip_address, success, details)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (datetime.utcnow().isoformat(), user_id, action, resource, ip_address, success, details))
-    
+
     def get_audit_trail(self, user_id: Optional[str] = None, action: Optional[str] = None):
         """Get audit trail."""
         query = "SELECT * FROM audit_log WHERE 1=1"
         params = []
-        
+
         if user_id:
             query += " AND user_id = ?"
             params.append(user_id)
-        
+
         if action:
             query += " AND action = ?"
             params.append(action)
-        
+
         query += " ORDER BY timestamp DESC LIMIT 1000"
-        
+
         with sqlite3.connect(self.db_path) as conn:
             return conn.execute(query, params).fetchall()
 
@@ -596,16 +633,16 @@ class CandlestickRequest(BaseModel):
     start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)")
     end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)")
     days: Optional[int] = Query(None, ge=1, le=365, description="Number of days (1-365)")
-    
+
     @validator('coin')
     def validate_coin(cls, v):
         """Validate cryptocurrency identifier."""
-        valid_coins = ["bitcoin", "ethereum", "ripple", "solana", "cardano", 
+        valid_coins = ["bitcoin", "ethereum", "ripple", "solana", "cardano",
                       "avalanche-2", "polkadot", "binancecoin", "chainlink", "dogecoin"]
         if v not in valid_coins:
             raise ValueError(f"Invalid coin. Must be one of: {', '.join(valid_coins)}")
         return v
-    
+
     @validator('end_date')
     def validate_date_range(cls, v, values):
         """Validate date range."""
@@ -631,7 +668,7 @@ from typing import List, Dict, Any
 class SecureDatabase:
     def __init__(self, db_path: str):
         self.db_path = db_path
-    
+
     def execute_query(self, query: str, params: Dict[str, Any] = None):
         """Execute parameterized query safely."""
         with duckdb.connect(self.db_path) as conn:
@@ -640,11 +677,11 @@ class SecureDatabase:
                 return conn.execute(query, params).fetchall()
             else:
                 return conn.execute(query).fetchall()
-    
+
     def get_candlesticks(self, coin: str, days: int = 30):
         """Get candlestick data with parameterized query."""
         query = """
-            SELECT * FROM mart.fct_crypto_candlesticks 
+            SELECT * FROM mart.fct_crypto_candlesticks
             WHERE coin = ? AND trade_date >= CURRENT_DATE - INTERVAL '? days'
             ORDER BY trade_date DESC
         """
@@ -677,7 +714,7 @@ def create_ssl_context():
 def run_with_ssl():
     """Run FastAPI with SSL."""
     ssl_context = create_ssl_context()
-    
+
     uvicorn.run(
         "api.main:app",
         host="0.0.0.0",
@@ -716,32 +753,32 @@ class SecurityMonitor:
         self.blocked_ips = set()
         self.alert_threshold = 5
         self.block_duration = 300  # 5 minutes
-    
+
     def check_authentication_failure(self, ip: str):
         """Monitor authentication failures."""
         now = time.time()
-        
+
         # Clean old attempts
         self.failed_attempts[ip] = [
             attempt_time for attempt_time in self.failed_attempts[ip]
             if now - attempt_time < self.block_duration
         ]
-        
+
         # Add current attempt
         self.failed_attempts[ip].append(now)
-        
+
         # Check threshold
         if len(self.failed_attempts[ip]) >= self.alert_threshold:
             self.blocked_ips.add(ip)
             self.send_security_alert(ip, "Multiple authentication failures")
             return True
-        
+
         return False
-    
+
     def is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is blocked."""
         return ip in self.blocked_ips
-    
+
     def send_security_alert(self, ip: str, message: str):
         """Send security alert."""
         # Implementation depends on alerting system
@@ -753,16 +790,16 @@ monitor = SecurityMonitor()
 @app.post("/api/v1/auth/login")
 async def login(request: Request, credentials: LoginCredentials):
     client_ip = request.client.host
-    
+
     if monitor.is_ip_blocked(client_ip):
         raise HTTPException(status_code=429, detail="Too many failed attempts")
-    
+
     # Authentication logic
     if not authenticate(credentials):
         if monitor.check_authentication_failure(client_ip):
             raise HTTPException(status_code=429, detail="Too many failed attempts")
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     # Successful login
     return {"message": "Login successful"}
 ```
@@ -781,6 +818,8 @@ async def login(request: Request, credentials: LoginCredentials):
 - [ ] **Input Validation**: All inputs validated and sanitized
 - [ ] **Logging**: Security events logged, sensitive data excluded
 - [ ] **Monitoring**: Security monitoring and alerting configured
+- [ ] **Static Analysis**: Bandit scanning configured and passing
+- [ ] **Dependency Security**: pip-audit scanning for vulnerabilities
 
 ### Production
 

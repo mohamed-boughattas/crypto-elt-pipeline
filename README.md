@@ -19,6 +19,8 @@
 [![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-red)](https://streamlit.io/)
 [![SQLFluff](https://img.shields.io/badge/sql%20linting-SQLFluff-blue)](https://sqlfluff.com/)
 [![pyright](https://img.shields.io/badge/type%20checking-pyright-blue)](https://github.com/microsoft/pyright)
+[![Bandit](https://img.shields.io/badge/security-Bandit-green)](https://bandit.readthedocs.io/)
+[![pip-audit](https://img.shields.io/badge/security-pip--audit-blue)](https://pypi.org/project/pip-audit/)
 
 ---
 
@@ -193,6 +195,7 @@ make status
 | **API**             | FastAPI         | RESTful data access endpoint       |
 | **Visualization**   | Streamlit       | Interactive dashboards             |
 | **Package Manager** | uv              | Ultra-fast dependency resolution   |
+| **Security**         | Bandit + pip-audit | Code & dependency vulnerability scanning |
 
 ---
 
@@ -295,6 +298,7 @@ make api            # Launch FastAPI server
 make test           # Run all tests
 make lint           # Run linting and format checks
 make clean          # Clean generated files (preserves history)
+make security       # Run security scans (bandit + pip-audit)
 ```
 
 ### Advanced Commands
