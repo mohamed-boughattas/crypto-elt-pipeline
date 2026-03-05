@@ -203,86 +203,122 @@ make status
 
 ```text
 crypto-elt-pipeline/
-├── src/crypto_elt_pipeline/      # Core Orchestration Logic
-│   ├── definitions.py            # Dagster entry point
-│   ├── config.py                 # Centralized configuration (coins.yaml loader)
-│   ├── constants.py              # Global paths
+├── .bandit                      # Bandit security scanner configuration
+├── .env.example                 # Environment variables template
+├── .gitignore                   # Git ignore patterns
+├── .pip-audit.toml              # pip-audit configuration
+├── .pre-commit-config.yaml      # Pre-commit hooks configuration
+├── .python-version              # Python version specification
+├── LICENSE                      # MIT License
+├── Makefile                     # Project automation
+├── pyproject.toml               # Python dependencies
+├── uv.lock                      # Dependency lock file
+│
+├── src/crypto_elt_pipeline/     # Core Orchestration Logic
+│   ├── definitions.py           # Dagster entry point
+│   ├── config.py                # Centralized configuration (coins.yaml loader)
+│   ├── constants.py             # Global paths
 │   ├── utils/
 │   │   ├── crypto_api.py        # CoinGecko API client with retry logic
 │   │   ├── crypto_db.py         # Database utilities for DuckDB operations
 │   │   └── crypto_transform.py  # Data transformation utilities
 │   └── defs/
 │       ├── assets/
-│       │   ├── ingestion.py      # PyAirbyte extraction (Bronze)
-│       │   ├── dbt.py            # Dagster-dbt integration
-│       │   └── external.py       # External asset definitions
-│       ├── schedules.py          # Schedules & sensors
-│       ├── sensors.py            # Data quality and freshness monitoring
-│       └── resources.py          # DuckDB-Polars I/O Manager
+│       │   ├── ingestion.py     # PyAirbyte extraction (Bronze)
+│       │   ├── dbt.py           # Dagster-dbt integration
+│       │   └── external.py      # External asset definitions
+│       ├── schedules.py         # Schedules & sensors
+│       ├── sensors.py           # Data quality and freshness monitoring
+│       └── resources.py         # DuckDB-Polars I/O Manager
 │
 ├── config/
-│   └── coins.yaml                # Single source of truth for coins
+│   └── coins.yaml               # Single source of truth for coins
 │
-├── dbt_project/                  # Transformation Layer (Medallion)
+├── dbt_project/                 # Transformation Layer (Medallion)
+│   ├── .sqlfluff                # SQLFluff linter configuration
+│   ├── .user.yml                # User-specific dbt settings
+│   ├── dbt_project.yml          # dbt project configuration
+│   ├── package-lock.yml          # dbt package lock
+│   ├── packages.yml             # dbt package dependencies
+│   ├── profiles.yml             # dbt connection profiles
+│   │
 │   ├── models/
-│   │   ├── staging/              # Silver Layer
+│   │   ├── staging/             # Silver Layer
 │   │   │   ├── stg_crypto_prices.sql
-│   │   │   ├── staging.yml       # Data quality tests & documentation
-│   │   │   └── exposures.yml     # Data exposure definitions
-│   │   └── marts/                # Gold Layer
+│   │   │   ├── staging.yml      # Data quality tests & documentation
+│   │   │   └── exposures.yml    # Data exposure definitions
+│   │   └── marts/               # Gold Layer
 │   │       ├── fct_crypto_candlesticks.sql
-│   │       └── marts.yml         # OHLC validation & business logic
+│   │       └── marts.yml        # OHLC validation & business logic
+│   │
 │   ├── macros/
 │   │   ├── financial_calculations.sql  # Reusable financial macros
-│   │   └── get_coin_list.sql     # Dynamic coin list generation
-│   ├── tests/                    # dbt test files
-│   ├── seeds/                    # dbt seed files
-│   │   └── coins_config.csv      # Coin configuration data
-│   ├── logs/                     # dbt execution logs
-│   ├── target/                   # dbt compiled artifacts
-│   └── dbt_project.yml
+│   │   ├── generate_schema_name.sql   # Schema name generation
+│   │   └── get_coin_list.sql          # Dynamic coin list generation
+│   │
+│   ├── seeds/
+│   │   └── coins_config.csv     # Coin configuration data
+│   │
+│   ├── tests/
+│   │   ├── marts/
+│   │   │   ├── test_fct_crypto_bollinger_bands.sql
+│   │   │   └── test_fct_crypto_candlesticks.sql
+│   │   └── staging/
+│   │       └── test_stg_crypto_prices.sql
+│   │
+│   ├── logs/                    # dbt execution logs
+│   └── target/                  # dbt compiled artifacts (gitignored)
 │
-├── streamlit_dashboard/          # Presentation Layer
-│   ├── dashboard.py              # Interactive crypto analytics
-│   ├── data.py                   # Data fetching utilities
-│   ├── charts.py                 # Chart generation functions
-│   ├── indicators.py             # Technical indicator calculations
-│   └── config.py                 # Dashboard configuration
+├── streamlit_dashboard/         # Presentation Layer
+│   ├── dashboard.py             # Interactive crypto analytics
+│   ├── data.py                  # Data fetching utilities
+│   ├── charts.py                # Chart generation functions
+│   ├── indicators.py            # Technical indicator calculations
+│   └── config.py                # Dashboard configuration
 │
-  ├── tests/                        # Test Suite (91 tests)
- │   ├── conftest.py               # Shared fixtures
- │   ├── test_config.py            # Configuration tests (23 tests)
- │   ├── test_schemas.py           # Schema validation tests (11 tests)
- │   ├── test_transform.py         # Transformation tests (17 tests)
- │   ├── test_data_quality.py      # Data quality tests (8 tests)
- │   ├── test_crypto_db.py        # Database utility tests (9 tests)
- │   └── test_api.py              # API endpoint tests (23 tests)
+├── tests/                       # Test Suite (91 tests)
+│   ├── conftest.py              # Shared fixtures
+│   ├── test_api.py              # API endpoint tests (23 tests)
+│   ├── test_config.py           # Configuration tests (23 tests)
+│   ├── test_crypto_db.py        # Database utility tests (9 tests)
+│   ├── test_data_quality.py     # Data quality tests (8 tests)
+│   ├── test_schemas.py          # Schema validation tests (11 tests)
+│   └── test_transform.py        # Transformation tests (17 tests)
 │
- ├── api/                          # REST API Layer
-│   └── main.py                   # FastAPI application with endpoints
+├── api/                         # REST API Layer
+│   └── main.py                  # FastAPI application with endpoints
 │
- ├── contracts/                    # Data Contracts & SLAs
+├── contracts/                   # Data Contracts & SLAs
 │   └── fct_crypto_candlesticks.yaml  # Gold layer data contract
 │
- ├── docs/                         # Documentation
-│   ├── index.md                  # Documentation index
-│   ├── system-design.md          # Architecture overview
-│   ├── data-modeling.md          # Medallion architecture
-│   ├── setup-guide.md            # Installation & configuration
-│   ├── testing.md                # Testing strategy
-│   ├── api-reference.md          # REST API documentation
-│   ├── deployment-guide.md       # Production deployment
-│   ├── security.md               # Security best practices
-│   └── adr/                      # Architecture decision records
-│       ├── 0001-use-duckdb.md    # ADR-001: Use DuckDB instead of PostgreSQL
-│       ├── 0002-use-dagster.md   # ADR-002: Use Dagster instead of Airflow
-│       ├── 0003-use-polars.md    # ADR-003: Use Polars instead of Pandas
+├── docs/                        # Documentation
+│   ├── index.md                 # Documentation index
+│   ├── system-design.md         # Architecture overview
+│   ├── data-modeling.md         # Medallion architecture
+│   ├── setup-guide.md           # Installation & configuration
+│   ├── testing.md               # Testing strategy
+│   ├── api-reference.md         # REST API documentation
+│   ├── deployment-guide.md      # Production deployment
+│   ├── security.md              # Security best practices
+│   │
+│   ├── diagrams/
+│   │   ├── architecture.mmd     # Mermaid architecture diagram
+│   │   ├── dashboard_demo.gif   # Streamlit dashboard demo
+│   │   └── diagram_architecture.jpg  # Architecture diagram image
+│   │
+│   └── adr/                     # Architecture decision records
+│       ├── 0001-use-duckdb.md   # ADR-001: Use DuckDB instead of PostgreSQL
+│       ├── 0002-use-dagster.md  # ADR-002: Use Dagster instead of Airflow
+│       ├── 0003-use-polars.md   # ADR-003: Use Polars instead of Pandas
 │       ├── 0004-use-local-dg-cli.md  # ADR-004: Use Local dg CLI instead of Docker Compose
-│       └── README.md             # ADR index and guidelines
-├── data/                         # DuckDB database (gitignored)
-├── CONTRIBUTING.md               # Contribution guidelines
-├── Makefile                      # Project automation
-└── pyproject.toml                # Dependencies
+│       └── README.md            # ADR index and guidelines
+│
+├── data/                        # DuckDB database (gitignored)
+├── logs/                        # Root-level logs directory
+├── source-coingecko-coins/      # PyAirbyte cache (gitignored)
+│
+├── CONTRIBUTING.md              # Contribution guidelines
+└── README.md                   # This file
 ```
 
 ---
