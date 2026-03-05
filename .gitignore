@@ -240,3 +240,6 @@ Thumbs.db
 .tmp/
 *.tmp
 tmp/
+
+# Security reports
+bandit-report.json

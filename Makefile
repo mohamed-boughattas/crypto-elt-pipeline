@@ -1,4 +1,4 @@
-.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov typecheck lint lint-dbt lint-dbt-fix clean deep-clean status security
+.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov typecheck lint lint-dbt lint-dbt-fix clean deep-clean status security pip-audit bandit
 
 # Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -38,7 +38,9 @@ help:
 	@echo "  make deep-clean → Full clean including .venv and .dagster_home"
 	@echo ""
 	@echo "Security:"
-	@echo "  make security     → Run Python vulnerability scan (pip-audit, local)"
+	@echo "  make pip-audit   → Scan Python dependencies for vulnerabilities"
+	@echo "  make bandit      → Scan code for security issues"
+	@echo "  make security    → Run all security scans"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make list-coins    → Show all enabled coins from config"
@@ -195,12 +197,17 @@ status:
 		echo "💡 Run 'make pipeline' to create the database"; \
 	fi
 
-# Security: Run Python security scans (pip-audit for dependencies, bandit for code)
-security:
+# Security: Scan Python dependencies for vulnerabilities
+pip-audit:
 	@echo "🔒 Running pip-audit (Python dependency scanner)..."
 	@uv run pip-audit --skip-editable || true
-	@echo ""
+
+# Security: Scan code for security issues
+bandit:
 	@echo "🔍 Running bandit (Code-level security scanner)..."
-	@uv run bandit -r . -ll -x .venv,venv,env,.git,.pytest_cache,__pycache__,.tox,.eggs,dist,build,node_modules,.mypy_cache || true
+	@uv run bandit -r . -ll -c .bandit || true
+
+# Security: Run all security scans
+security: pip-audit bandit
 
 .DEFAULT_GOAL := help

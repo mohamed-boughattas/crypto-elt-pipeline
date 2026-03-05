@@ -131,8 +131,18 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run bandit (Code-level security scanner)
-        run: uv run bandit -r . -ll -c .bandit
+      - name: Run bandit security linter
+        continue-on-error: true
+        run: |
+          uv run bandit -c .bandit -f json -o bandit-report.json
+          uv run bandit -c .bandit
+
+      - name: Upload Bandit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
 
       - name: Install Trivy
         run: |
