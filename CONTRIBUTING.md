@@ -248,6 +248,11 @@ make lint
 # Run tests
 make test
 
+# Run security scans
+make pip-audit    # Scan Python dependencies for vulnerabilities
+make bandit       # Scan code for security issues
+make security     # Run all security scans (bandit + pip-audit)
+
 # Clean up (preserves history)
 make clean
 
@@ -306,6 +311,7 @@ Before submitting a pull request, ensure:
 - [ ] Corresponding changes to documentation have been made
 - [ ] Changes generate no new warnings
 - [ ] New and existing unit tests pass locally
+- [ ] Security scans pass locally (`make security`)
 - [ ] Any dependent changes have been merged and published
 
 ## 🙏 Recognition

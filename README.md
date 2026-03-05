@@ -298,7 +298,9 @@ make api            # Launch FastAPI server
 make test           # Run all tests
 make lint           # Run linting and format checks
 make clean          # Clean generated files (preserves history)
-make security       # Run security scans (bandit + pip-audit)
+make pip-audit      # Scan Python dependencies for vulnerabilities
+make bandit         # Scan code for security issues
+make security       # Run all security scans (bandit + pip-audit)
 ```
 
 ### Advanced Commands

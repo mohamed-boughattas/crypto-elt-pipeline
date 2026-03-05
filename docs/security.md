@@ -465,9 +465,11 @@ app.add_middleware(IPWhitelistMiddleware, allowed_ips=allowed_ips)
 Bandit is a static code analyzer that finds common security issues in Python code. It's integrated into the CI/CD pipeline and can be run locally.
 
 ```bash
-# Run bandit with project configuration
-make security
-# Or directly:
+# Using Makefile targets (recommended)
+make bandit       # Scan code for security issues only
+make security     # Run all security scans (bandit + pip-audit)
+
+# Or directly with bandit:
 uv run bandit -r . -ll -c .bandit
 ```
 
