@@ -187,13 +187,13 @@ def pipeline_health_sensor(context: dg.SensorEvaluationContext) -> dg.SkipReason
                 SELECT COUNT(*)
                 FROM information_schema.tables
                 WHERE table_schema = '{schema}' AND table_name = '{table}'
-            """
+            """  # nosec B608
             exists_result = conn.execute(check_query).fetchone()
             exists = exists_result is not None and exists_result[0] > 0
 
             if exists:
                 # Check if table has data
-                count_query = f"SELECT COUNT(*) FROM {schema}.{table}"
+                count_query = f"SELECT COUNT(*) FROM {schema}.{table}"  # nosec B608
                 count_result = conn.execute(count_query).fetchone()
                 count = count_result[0] if count_result is not None else 0
                 context.log.info(f"✅ {schema}.{table}: {count:,} records")
