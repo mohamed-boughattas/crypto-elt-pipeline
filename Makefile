@@ -1,4 +1,4 @@
-.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov typecheck lint lint-dbt lint-dbt-fix clean deep-clean status
+.PHONY: help setup start pipeline pipeline-coin dev dashboard api test test-cov typecheck lint lint-dbt lint-dbt-fix clean deep-clean status security
 
 # Configuration
 PROJECT_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -36,6 +36,9 @@ help:
 	@echo "Maintenance:"
 	@echo "  make clean     → Clean database and dbt target (preserves history)"
 	@echo "  make deep-clean → Full clean including .venv and .dagster_home"
+	@echo ""
+	@echo "Security:"
+	@echo "  make security     → Run Python vulnerability scan (pip-audit, local)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make list-coins    → Show all enabled coins from config"
@@ -191,5 +194,13 @@ status:
 		echo "❌ Database not found: $(DB_PATH)"; \
 		echo "💡 Run 'make pipeline' to create the database"; \
 	fi
+
+# Security: Run Python security scans (pip-audit for dependencies, bandit for code)
+security:
+	@echo "🔒 Running pip-audit (Python dependency scanner)..."
+	@uv run pip-audit --skip-editable || true
+	@echo ""
+	@echo "🔍 Running bandit (Code-level security scanner)..."
+	@uv run bandit -r . -ll -x .venv,venv,env,.git,.pytest_cache,__pycache__,.tox,.eggs,dist,build,node_modules,.mypy_cache || true
 
 .DEFAULT_GOAL := help
