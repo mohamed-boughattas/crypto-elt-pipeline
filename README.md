@@ -186,16 +186,16 @@ make status
 
 ## 🛠️ Tech Stack
 
-| Layer               | Technology      | Purpose                            |
-| ------------------- | --------------- | ---------------------------------- |
-| **Orchestration**   | Dagster         | Asset-based workflow orchestration |
-| **Extraction**      | PyAirbyte       | Serverless data ingestion          |
-| **Transformation**  | dbt             | SQL-based modeling (Medallion)     |
-| **Storage**         | DuckDB + Polars | Embedded OLAP database             |
-| **API**             | FastAPI         | RESTful data access endpoint       |
-| **Visualization**   | Streamlit       | Interactive dashboards             |
-| **Package Manager** | uv              | Ultra-fast dependency resolution   |
-| **Security**         | Bandit + pip-audit | Code & dependency vulnerability scanning |
+| Layer               | Technology         | Purpose                                  |
+| ------------------- | ------------------ | ---------------------------------------- |
+| **Orchestration**   | Dagster            | Asset-based workflow orchestration       |
+| **Extraction**      | PyAirbyte          | Serverless data ingestion                |
+| **Transformation**  | dbt                | SQL-based modeling (Medallion)           |
+| **Storage**         | DuckDB + Polars    | Embedded OLAP database                   |
+| **API**             | FastAPI            | RESTful data access endpoint             |
+| **Visualization**   | Streamlit          | Interactive dashboards                   |
+| **Package Manager** | uv                 | Ultra-fast dependency resolution         |
+| **Security**        | Bandit + pip-audit | Code & dependency vulnerability scanning |
 
 ---
 
@@ -416,16 +416,16 @@ uv run pre-commit run --all-files
 
 ## 📚 Documentation
 
-| Document                                         | Description                                    |
-| ------------------------------------------------ | ---------------------------------------------- |
-| [📐 System Design](docs/system-design.md)        | Detailed system design & component breakdown   |
-| [🗂️ Data Modeling](docs/data-modeling.md)        | Medallion architecture & dbt transformations   |
-| [🚀 Setup Guide](docs/setup-guide.md)            | Detailed installation & configuration          |
-| [🧪 Testing Guide](docs/testing.md)              | Testing strategy & writing tests               |
-| [🔗 API Reference](docs/api-reference.md)        | REST API documentation & usage examples        |
-| [🚀 Deployment Guide](docs/deployment-guide.md)  | Production deployment strategies               |
-| [🔒 Security Guide](docs/security.md)            | Security best practices & considerations       |
-| [🤝 Contributing](CONTRIBUTING.md)               | Contribution guidelines & development workflow |
+| Document                                        | Description                                    |
+| ----------------------------------------------- | ---------------------------------------------- |
+| [📐 System Design](docs/system-design.md)       | Detailed system design & component breakdown   |
+| [🗂️ Data Modeling](docs/data-modeling.md)       | Medallion architecture & dbt transformations   |
+| [🚀 Setup Guide](docs/setup-guide.md)           | Detailed installation & configuration          |
+| [🧪 Testing Guide](docs/testing.md)             | Testing strategy & writing tests               |
+| [🔗 API Reference](docs/api-reference.md)       | REST API documentation & usage examples        |
+| [🚀 Deployment Guide](docs/deployment-guide.md) | Production deployment strategies               |
+| [🔒 Security Guide](docs/security.md)           | Security best practices & considerations       |
+| [🤝 Contributing](CONTRIBUTING.md)              | Contribution guidelines & development workflow |
 
 ---
 
