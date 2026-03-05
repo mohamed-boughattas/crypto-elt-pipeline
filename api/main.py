@@ -78,7 +78,7 @@ class RateLimiter:
         self.clients[client_id] = [
             req_time
             for req_time in self.clients[client_id]
-            if (now - req_time).total_seconds() < self.period
+            if (pendulum.instance(now) - pendulum.instance(req_time)).total_seconds() < self.period
         ]
 
         if len(self.clients[client_id]) >= self.requests:
@@ -417,7 +417,7 @@ async def get_candlesticks(
                 FROM mart.fct_crypto_candlesticks
                 WHERE coin = ?
             """
-            params = [coin]
+            params: list[object] = [coin]
 
             # Add date filters if provided
             if start_date:
@@ -568,4 +568,4 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104
