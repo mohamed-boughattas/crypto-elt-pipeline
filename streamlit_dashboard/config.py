@@ -6,11 +6,9 @@ including constants, theme styles, and settings.
 
 import streamlit as st
 
-# --- DASHBOARD PARAMETERS ---
-CACHE_TTL = 3600  # Cache data for 1 hour
-DEFAULT_DAYS = 30  # Historical lookback period
-MA_PERIOD = 7  # Moving Average window (days)
-RSI_PERIOD = 14  # RSI calculation period
+CACHE_TTL = 3600
+DEFAULT_DAYS = 30
+MA_PERIOD = 7
 
 
 # --- PAGE SETTINGS ---

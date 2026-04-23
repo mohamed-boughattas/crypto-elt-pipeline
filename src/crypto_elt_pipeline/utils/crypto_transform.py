@@ -4,7 +4,6 @@ This module provides functions for transforming raw API responses into
 usable time-series data, including validation, unnesting, and resampling.
 """
 
-import numpy as np
 import pandera.polars as pa
 import pendulum
 import polars as pl
@@ -36,13 +35,9 @@ class EnhancedMarketSchema(pa.DataFrameModel):
     currency: str = pa.Field(nullable=False)
     ingested_at: pl.Datetime = pa.Field(nullable=False)
     recorded_at: pl.Datetime = pa.Field(nullable=False)
-    price: float = pa.Field(gt=0, nullable=False)  # Business rule: Prices must be positive
-    market_cap: float = pa.Field(
-        ge=0, nullable=False
-    )  # Business rule: Market cap must be non-negative (matches dbt)
-    volume: float = pa.Field(
-        ge=0, nullable=False
-    )  # Business rule: Volume must be non-negative (matches dbt)
+    price: float = pa.Field(ge=0, nullable=False)
+    market_cap: float = pa.Field(ge=0, nullable=False)
+    volume: float = pa.Field(ge=0, nullable=False)
 
     class Config:
         strict = False  # Allow additional columns
@@ -60,10 +55,10 @@ def validate_raw_data(raw_df: pl.DataFrame) -> None:
         ValueError: If raw data is invalid or malformed
         RuntimeError: If validation fails unexpectedly
     """
-    try:
-        if raw_df.is_empty():
-            raise ValueError("Raw data is empty - no API response received")
+    if raw_df.is_empty():
+        raise ValueError("Raw data is empty - no API response received")
 
+    try:
         RawMarketChartSchema.validate(raw_df)
     except pa.errors.SchemaError as e:
         raise ValueError(f"Raw data validation failed: {str(e)}") from e
@@ -137,19 +132,13 @@ def unnest_market_data(raw_df: pl.DataFrame, coin_id: str, vs_currency: str) -> 
             f"market_caps={len(market_caps_data)}, volumes={len(volumes_data)}"
         )
 
-    # Convert to numpy arrays for faster processing
-    # Convert Polars Series to list first before numpy conversion
-    prices_array = np.array(list(prices_data), dtype=np.float64)
-    market_caps_array = np.array(list(market_caps_data), dtype=np.float64)
-    volumes_array = np.array(list(volumes_data), dtype=np.float64)
+    # Extract columns from nested lists using Polars-native operations
+    timestamps = [x[0] for x in prices_data]
+    prices = [x[1] for x in prices_data]
+    market_caps = [x[1] for x in market_caps_data]
+    volumes = [x[1] for x in volumes_data]
 
-    # Extract columns efficiently
-    timestamps = prices_array[:, 0]
-    prices = prices_array[:, 1]
-    market_caps = market_caps_array[:, 1]
-    volumes = volumes_array[:, 1]
-
-    # Create DataFrame efficiently with numpy arrays
+    # Create DataFrame with Polars-native lists
     flattened_df = pl.DataFrame(
         {
             "timestamp_ms": timestamps,

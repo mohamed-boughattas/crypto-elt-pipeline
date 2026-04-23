@@ -1,11 +1,6 @@
-"""Database connection and data fetching utilities.
-
-This module provides functions for connecting to DuckDB and fetching
-market data for the dashboard.
-"""
+"""Database connection and data fetching utilities."""
 
 import logging
-from pathlib import Path
 
 import duckdb
 import pendulum
@@ -13,59 +8,32 @@ import polars as pl
 import streamlit as st
 
 from crypto_elt_pipeline.config import get_config
+from crypto_elt_pipeline.constants import DUCKDB_PATH
+from streamlit_dashboard.config import CACHE_TTL
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Cache TTL in seconds (1 hour)
-CACHE_TTL = 3600
 
-
-# --- DATA INFRASTRUCTURE ---
 class DataError(Exception):
-    """Custom exception for data-related errors with user-friendly messages."""
+    """Custom exception for data-related errors."""
 
     pass
 
 
-def get_db_path() -> Path:
-    """Get the path to the DuckDB database."""
-    project_root = Path(__file__).resolve().parent.parent
-    return project_root / "data" / "crypto.duckdb"
-
-
 def check_database_exists() -> bool:
-    """Check if the database exists and is accessible.
-
-    Returns True if the database exists, False otherwise.
-    This function is NOT cached to allow recovery after DB is created.
-    """
-    db_path = get_db_path()
-
-    if not db_path.exists():
-        st.error(f"❌ Database not found at: {db_path}")
+    if not DUCKDB_PATH.exists():
+        st.error(f"❌ Database not found at: {DUCKDB_PATH}")
         st.info("💡 Generate data first: `make pipeline`")
         return False
-
     return True
 
 
 def check_gold_layer_ready() -> bool:
-    """Verify Gold layer has data before rendering dashboard.
-
-    Returns True if Gold layer tables are populated, False otherwise.
-    This function is NOT cached to allow recovery after data is loaded.
-    """
     try:
-        # Create a new connection for this check to avoid caching issues
-        db_path = get_db_path()
-        conn = duckdb.connect(str(db_path), read_only=True)
-        result = conn.execute("SELECT COUNT(*) FROM mart.fct_crypto_candlesticks").fetchone()
-        conn.close()
-
-        if result and result[0] > 0:
-            return True
-        else:
+        with get_connection() as conn:
+            result = conn.execute("SELECT COUNT(*) FROM mart.fct_crypto_candlesticks").fetchone()
+            if result and result[0] > 0:
+                return True
             st.error("❌ Gold layer tables are empty. Run `make pipeline` to load data.")
             st.info("💡 The pipeline creates: Bronze → Silver → Gold layers")
             return False
@@ -77,23 +45,12 @@ def check_gold_layer_ready() -> bool:
 
 @st.cache_resource
 def _create_connection() -> duckdb.DuckDBPyConnection:
-    """Creates a cached, read-only connection to the DuckDB warehouse.
-
-    This function only creates the connection - error handling is done
-    separately to avoid caching exceptions in the cached resource.
-    """
-    db_path = get_db_path()
-    return duckdb.connect(str(db_path), read_only=True)
+    return duckdb.connect(str(DUCKDB_PATH), read_only=True)
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
-    """Get a connection to the DuckDB database.
-
-    Performs existence check before attempting to connect.
-    """
     if not check_database_exists():
         st.stop()
-
     try:
         return _create_connection()
     except Exception as e:
@@ -103,41 +60,26 @@ def get_connection() -> duckdb.DuckDBPyConnection:
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_available_coins() -> list:
-    """Fetches list of available coins from the database."""
     conn = get_connection()
     try:
-        query = "SELECT DISTINCT coin FROM mart.fct_crypto_candlesticks ORDER BY coin"
-        df = conn.execute(query).pl()
+        df = conn.execute(
+            "SELECT DISTINCT coin FROM mart.fct_crypto_candlesticks ORDER BY coin"
+        ).pl()
         return df["coin"].to_list()
     except Exception as e:
-        # Log the error for debugging
         logger.error(f"Database error while fetching available coins: {str(e)}", exc_info=True)
         st.error(f"Database error while fetching available coins: {str(e)}")
         st.warning("⚠️ Unable to fetch coin list from database. Using fallback list.")
-        return ["bitcoin"]  # Fallback
+        return ["bitcoin"]
 
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_coin_colors() -> dict[str, str]:
-    """Get coin colors from configuration."""
     return get_config().coin_colors
 
 
 @st.cache_data(ttl=CACHE_TTL)
 def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.DataFrame:
-    """Fetches OHLCV and volatility from the dbt mart layer for a specific coin.
-
-    Args:
-        coin: Cryptocurrency identifier (e.g., 'bitcoin')
-        start: Start date for the analysis period
-        end: End date for the analysis period
-
-    Returns:
-        Polars DataFrame with OHLCV data and computed metrics
-
-    Raises:
-        DataError: If data is unavailable or stale, with user-friendly message.
-    """
     conn = get_connection()
     try:
         query = """
@@ -156,7 +98,13 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
                 bb_upper,
                 bb_lower,
                 bb_width,
-                bb_position
+                bb_position,
+                daily_change_pct,
+                price_range,
+                rsi,
+                macd,
+                macd_signal,
+                macd_histogram
             FROM mart.fct_crypto_candlesticks
             WHERE coin = $1
             AND trade_date >= $2
@@ -168,7 +116,6 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
         if df.is_empty():
             raise DataError(f"No data available for {coin} in the selected date range.")
 
-        # Validate required columns
         required_cols = [
             "trade_date",
             "coin",
@@ -182,7 +129,6 @@ def get_market_data(coin: str, start: pendulum.Date, end: pendulum.Date) -> pl.D
         if missing_cols:
             raise DataError(f"Missing required columns: {missing_cols}")
 
-        # Validate data quality
         if df["close_price"].null_count() > 0:
             st.warning(f"⚠️ Found {df['close_price'].null_count()} null prices in {coin} data")
 
