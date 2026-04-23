@@ -41,8 +41,6 @@ Automated pipeline that:
 - **Incremental extraction** reduces API calls by ~97% on daily runs
 - **Incremental Silver layer** for efficient data processing
 - **Automated monitoring** with data freshness and quality sensors
-- **REST API** for programmatic data access
-- **Data contracts** with SLAs and quality rules
 
 ---
 
@@ -114,7 +112,7 @@ git clone https://github.com/mohamed-boughattas/crypto-elt-pipeline.git
 cd crypto-elt-pipeline
 
 # One command to rule them all
-make start
+just start
 ```
 
 **That's it!** 🎉
@@ -133,19 +131,19 @@ For new developers or after a fresh clone:
 docker info
 
 # 2. Install dependencies
-make setup
+just setup
 
 # 3. Run initial data load (~3-5 min for 10 coins)
-make pipeline
+just pipeline
 
 # 4. Launch dashboard
-make dashboard
+just dashboard
 ```
 
 ### Verify Pipeline Success
 
 ```bash
-make status
+just status
 # Expected output:
 # ✅ Database exists: data/crypto.duckdb
 # 📦 Database size: 15M
@@ -210,7 +208,7 @@ crypto-elt-pipeline/
 ├── .pre-commit-config.yaml      # Pre-commit hooks configuration
 ├── .python-version              # Python version specification
 ├── LICENSE                      # MIT License
-├── Makefile                     # Project automation
+├── justfile                     # Project automation (just)
 ├── pyproject.toml               # Python dependencies
 ├── uv.lock                      # Dependency lock file
 │
@@ -228,7 +226,6 @@ crypto-elt-pipeline/
 │       │   ├── dbt.py           # Dagster-dbt integration
 │       │   └── external.py      # External asset definitions
 │       ├── schedules.py         # Schedules & sensors
-│       ├── sensors.py           # Data quality and freshness monitoring
 │       └── resources.py         # DuckDB-Polars I/O Manager
 │
 ├── config/
@@ -276,20 +273,23 @@ crypto-elt-pipeline/
 │   ├── indicators.py            # Technical indicator calculations
 │   └── config.py                # Dashboard configuration
 │
-├── tests/                       # Test Suite (91 tests)
+├── tests/                       # Test Suite (119 tests)
 │   ├── conftest.py              # Shared fixtures
-│   ├── test_api.py              # API endpoint tests (23 tests)
-│   ├── test_config.py           # Configuration tests (23 tests)
-│   ├── test_crypto_db.py        # Database utility tests (9 tests)
-│   ├── test_data_quality.py     # Data quality tests (8 tests)
-│   ├── test_schemas.py          # Schema validation tests (11 tests)
-│   └── test_transform.py        # Transformation tests (17 tests)
+│   ├── test_api.py              # API endpoint tests (27 tests)
+│   ├── test_config.py           # Configuration tests (21 tests)
+│   ├── test_crypto_db.py        # Database utility tests (15 tests)
+│   ├── test_data_quality.py     # Data quality tests (7 tests)
+│   ├── test_indicators.py       # Technical indicator tests (17 tests)
+│   ├── test_schemas.py           # Schema validation tests (12 tests)
+│   └── test_transform.py        # Transformation tests (20 tests)
 │
 ├── api/                         # REST API Layer
-│   └── main.py                  # FastAPI application with endpoints
-│
-├── contracts/                   # Data Contracts & SLAs
-│   └── fct_crypto_candlesticks.yaml  # Gold layer data contract
+│   ├── main.py                  # FastAPI app factory
+│   ├── db.py                    # Database utilities
+│   ├── models.py                # API models
+│   └── routers/                 # Route modules
+│       ├── health.py            # Health check endpoint
+│       └── market.py            # Market data endpoints
 │
 ├── docs/                        # Documentation
 │   ├── index.md                 # Documentation index
@@ -298,8 +298,6 @@ crypto-elt-pipeline/
 │   ├── setup-guide.md           # Installation & configuration
 │   ├── testing.md               # Testing strategy
 │   ├── api-reference.md         # REST API documentation
-│   ├── deployment-guide.md      # Production deployment
-│   ├── security.md              # Security best practices
 │   │
 │   ├── diagrams/
 │   │   ├── architecture.mmd     # Mermaid architecture diagram
@@ -326,24 +324,24 @@ crypto-elt-pipeline/
 ## 📋 Common Commands
 
 ```bash
-make start          # Full pipeline + dashboard (automated)
-make pipeline       # Run data pipeline (all coins)
-make dev            # Launch Dagster development server
-make dashboard      # Launch Streamlit dashboard
-make api            # Launch FastAPI server
-make test           # Run all tests
-make lint           # Run linting and format checks
-make clean          # Clean generated files (preserves history)
-make pip-audit      # Scan Python dependencies for vulnerabilities
-make bandit         # Scan code for security issues
-make security       # Run all security scans (bandit + pip-audit)
+just start          # Full pipeline + dashboard (automated)
+just pipeline       # Run data pipeline (all coins)
+just dev            # Launch Dagster development server
+just dashboard      # Launch Streamlit dashboard
+just api            # Launch FastAPI server
+just test           # Run all tests
+just lint           # Run linting and format checks
+just clean          # Clean generated files (preserves history)
+just pip-audit      # Scan Python dependencies for vulnerabilities
+just bandit         # Scan code for security issues
+just security       # Run all security scans (bandit + pip-audit)
 ```
 
 ### Advanced Commands
 
 ```bash
-make coin=bitcoin pipeline-coin  # Run pipeline for specific coin
-make deep-clean                  # Full clean including run history
+just pipeline-coin bitcoin  # Run pipeline for specific coin
+just deep-clean                  # Full clean including run history
 ```
 
 ### Development Setup
@@ -356,7 +354,7 @@ uv run pre-commit install
 uv run pre-commit run --all-files
 ```
 
-> **All commands:** run `make help`
+> **All commands:** run `just help`
 
 ---
 
@@ -386,6 +384,7 @@ uv run pre-commit run --all-files
 - Historical trend visualization
 - 7-day and 25-day simple moving averages
 - Daily price change percentage
+- RSI (Relative Strength Index) and MACD indicators
 
 ### 🎨 Enhanced dbt Transformations
 
@@ -399,6 +398,7 @@ uv run pre-commit run --all-files
 - **Performance optimization**: Strategic clustering and indexing for time-series queries
 - **Data quality tracking**: Sample count and completeness metrics
 - **Bollinger Bands**: Technical analysis indicators for volatility and trend analysis
+- **RSI & MACD**: Relative Strength Index and Moving Average Convergence Divergence
 - **Incremental processing**: Efficient daily updates with watermark-based loading
 
 > **Feature details:** [Data Modeling](docs/data-modeling.md)
@@ -423,8 +423,6 @@ uv run pre-commit run --all-files
 | [🚀 Setup Guide](docs/setup-guide.md)           | Detailed installation & configuration          |
 | [🧪 Testing Guide](docs/testing.md)             | Testing strategy & writing tests               |
 | [🔗 API Reference](docs/api-reference.md)       | REST API documentation & usage examples        |
-| [🚀 Deployment Guide](docs/deployment-guide.md) | Production deployment strategies               |
-| [🔒 Security Guide](docs/security.md)           | Security best practices & considerations       |
 | [🤝 Contributing](CONTRIBUTING.md)              | Contribution guidelines & development workflow |
 
 ---
@@ -484,7 +482,7 @@ The pipeline includes a FastAPI endpoint for programmatic data access:
 
 ```bash
 # Start the API server
-make api
+just api
 
 # Example API calls
 curl http://localhost:8000/api/v1/coins
@@ -499,7 +497,7 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) - **55+ dbt tests** + **91 unit tests**
+3. **dbt tests** for not-null & uniqueness (Silver) — **46 dbt tests** + **119 unit tests**
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
@@ -528,8 +526,8 @@ This is a personal learning project, but suggestions are welcome!
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-improvement`
-3. Make changes and ensure tests pass: `make test`
-4. Run linting: `make lint`
+3. Make changes and ensure tests pass: `just test`
+4. Run linting: `just lint`
 5. Submit a pull request
 
 ### Code Style
