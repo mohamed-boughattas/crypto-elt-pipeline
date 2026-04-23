@@ -15,7 +15,5 @@ DUCKDB_PATH: Final[Path] = DATA_DIR / "crypto.duckdb"
 LOGS_DIR: Final[Path] = PROJECT_ROOT / "logs"
 
 # 4. dbt Orchestration Paths
-# Configures the directory and artifacts for the dbt transformation layer
+# Configures the directory for the dbt transformation layer
 DBT_PROJECT_DIR: Final[Path] = PROJECT_ROOT / "dbt_project"
-DBT_TARGET_DIR: Final[Path] = DBT_PROJECT_DIR / "target"
-DBT_MANIFEST_PATH: Final[Path] = DBT_TARGET_DIR / "manifest.json"
