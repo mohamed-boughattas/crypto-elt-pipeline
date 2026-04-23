@@ -36,51 +36,7 @@ from crypto_elt_pipeline.utils.crypto_transform import (
 # Configuration & Partitions (from centralized config)
 # ------------------------------------------------------------------
 
-# Cached partition definition - loaded lazily on first access
-_CRYPTO_PARTITIONS_CACHE: dg.StaticPartitionsDefinition | None = None
-
-
-def _get_crypto_partitions() -> dg.StaticPartitionsDefinition:
-    """Get partitions definition from centralized config.
-
-    Uses lazy loading to avoid loading config during module import.
-    This allows tests to import the module without requiring coins.yaml.
-    """
-    global _CRYPTO_PARTITIONS_CACHE
-    if _CRYPTO_PARTITIONS_CACHE is None:
-        config = get_config()
-        _CRYPTO_PARTITIONS_CACHE = dg.StaticPartitionsDefinition(config.coin_ids)
-    return _CRYPTO_PARTITIONS_CACHE
-
-
-def get_crypto_partitions() -> dg.StaticPartitionsDefinition:
-    """Get the crypto partitions.
-
-    Returns:
-        StaticPartitionsDefinition with coin IDs
-    """
-    return _get_crypto_partitions()
-
-
-class _CRYPTO_PARTITIONS_COMPAT:
-    """Compatibility class for CRYPTO_PARTITIONS.
-
-    This provides backwards compatibility for code that accesses
-    CRYPTO_PARTITIONS directly as a module-level variable.
-    Uses lazy loading to avoid failing if coins.yaml is missing.
-    """
-
-    def get_partition_keys(self):
-        return _get_crypto_partitions().get_partition_keys()
-
-    def __getattr__(self, name):
-        return getattr(_get_crypto_partitions(), name)
-
-
-# For backwards compatibility - use the compatibility class
-# This allows both `CRYPTO_PARTITIONS.get_partition_keys()` and
-# `get_crypto_partitions().get_partition_keys()` to work
-CRYPTO_PARTITIONS: dg.StaticPartitionsDefinition = _CRYPTO_PARTITIONS_COMPAT()  # type: ignore[assignment]
+CRYPTO_PARTITIONS = dg.StaticPartitionsDefinition(get_config().coin_ids)
 
 
 # ------------------------------------------------------------------
@@ -99,18 +55,6 @@ class IngestionConfig(dg.Config):
     vs_currency: str | None = None
     days_to_fetch: int | None = None
 
-    def get_vs_currency(self) -> str:
-        """Get vs_currency from config if not specified."""
-        if self.vs_currency is not None:
-            return self.vs_currency
-        return get_config().ingestion.vs_currency
-
-    def get_days_to_fetch(self) -> int:
-        """Get days_to_fetch from config if not specified."""
-        if self.days_to_fetch is not None:
-            return self.days_to_fetch
-        return get_config().ingestion.days_to_fetch
-
 
 # ------------------------------------------------------------------
 # Asset Definition - Bronze Layer (Raw)
@@ -123,7 +67,7 @@ class IngestionConfig(dg.Config):
     kinds={"airbyte", "duckdb"},
     io_manager_key="io_manager",
     key_prefix=["raw"],
-    partitions_def=get_crypto_partitions(),
+    partitions_def=CRYPTO_PARTITIONS,
     retry_policy=dg.RetryPolicy(
         max_retries=2,  # 2 retries on failure
         delay=30,  # Wait 30 seconds before retrying
@@ -176,7 +120,7 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     coin_id = context.partition_key
 
     # Defense-in-depth: Validate partition key
-    valid_coins = get_crypto_partitions().get_partition_keys()
+    valid_coins = CRYPTO_PARTITIONS.get_partition_keys()
     if coin_id not in valid_coins:
         raise ValueError(f"Invalid partition key: {coin_id}. Expected one of {valid_coins}")
 
@@ -185,8 +129,8 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
     context.log.info(f"Processing {coin_id.upper()}")
     context.log.info("=" * 50)
 
-    vs_currency = config.get_vs_currency()
-    default_days = config.get_days_to_fetch()
+    vs_currency = config.vs_currency or get_config().ingestion.vs_currency
+    default_days = config.days_to_fetch or get_config().ingestion.days_to_fetch
 
     # 1. Incremental Loading: Check for existing data
     latest_timestamp = get_latest_timestamp(coin_id)
@@ -247,27 +191,8 @@ def crypto_prices(context: dg.AssetExecutionContext, config: IngestionConfig) ->
         )
 
     except Exception as e:
-        # Enhanced error handling with specific error messages
-        error_type = type(e).__name__
-        error_msg = str(e)
-
-        if "RateLimitError" in error_type:
-            context.log.error(f"❌ Rate limit exceeded for {coin_id}: {error_msg}")
-            raise
-        elif "ConnectionError" in error_type or "Network" in error_type:
-            context.log.error(f"❌ Network connection failed for {coin_id}: {error_msg}")
-            raise
-        elif "ValueError" in error_type and "validation" in error_msg.lower():
-            context.log.error(f"❌ Data validation failed for {coin_id}: {error_msg}")
-            raise
-        elif "RuntimeError" in error_type:
-            context.log.error(f"❌ Runtime error for {coin_id}: {error_msg}")
-            raise
-        else:
-            context.log.error(
-                f"❌ Unexpected error processing {coin_id}: {error_type}: {error_msg}"
-            )
-            raise RuntimeError(f"Failed to process data for {coin_id}: {error_msg}") from e
+        context.log.error(f"❌ Error processing {coin_id}: {type(e).__name__}: {e}")
+        raise
 
     # 8. Observability: Attach summary stats to Dagster Asset
     new_records = new_df.height
