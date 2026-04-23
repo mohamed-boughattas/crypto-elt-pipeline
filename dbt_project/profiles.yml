@@ -3,7 +3,14 @@ crypto_elt_pipeline:
   outputs:
     dev:
       type: duckdb
-      # Resolves the database file relative to the dbt project root
       path: '../data/crypto.duckdb'
-      # Configures parallel execution for concurrent model materialization
       threads: 4
+
+elementary:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '../data/crypto.duckdb'
+      schema: elementary
+      threads: 1

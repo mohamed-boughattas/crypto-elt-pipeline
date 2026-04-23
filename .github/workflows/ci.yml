@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install just
+        run: curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/bin
+
       - name: Cache uv lockfile
         uses: actions/cache@v4
         with:
@@ -111,6 +114,17 @@ jobs:
         with:
           name: dbt-docs
           path: dbt_project/target/
+          retention-days: 7
+
+      - name: Generate elementary observability report
+        continue-on-error: true
+        run: cd dbt_project && uvx --with 'elementary-data[duckdb]' edr report
+      - name: Upload elementary report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elementary-report
+          path: dbt_project/edr_target/
           retention-days: 7
 
   security:

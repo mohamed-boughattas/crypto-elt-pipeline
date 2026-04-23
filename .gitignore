@@ -243,3 +243,6 @@ tmp/
 
 # Security reports
 bandit-report.json
+
+# Elementary observability
+dbt_project/edr_target/

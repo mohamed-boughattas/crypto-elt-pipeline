@@ -37,6 +37,25 @@ models:
           combination_of_columns:
             - coin
             - trade_date
+      # Elementary data observability tests
+      - elementary.volume_anomalies:
+          arguments:
+            timestamp_column: trade_date
+          config:
+            tags: ["elementary"]
+            severity: warn
+      - elementary.freshness_anomalies:
+          arguments:
+            timestamp_column: trade_date
+          config:
+            tags: ["elementary"]
+            severity: warn
+      - elementary.all_columns_anomalies:
+          arguments:
+            exclude_regexp: "^(coin|trade_date|samples_count)$"
+          config:
+            tags: ["elementary"]
+            severity: warn
       # OHLC logical consistency tests - critical for financial data integrity
       - dbt_utils.expression_is_true:
           expression: "high_price >= low_price"
@@ -242,3 +261,51 @@ models:
           - not_null
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
+
+      - name: rsi
+        description: |
+          14-day Relative Strength Index calculated using Wilder's smoothing method.
+          Momentum oscillator measuring speed and magnitude of price changes.
+          Values above 70 indicate overbought conditions, below 30 indicate oversold.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100
+              config:
+                where: "rsi is not null"
+
+      - name: macd
+        description: |
+          MACD line: 12-day EMA minus 26-day EMA.
+          Trend-following momentum indicator showing relationship between two moving averages.
+          Positive values indicate bullish momentum, negative values indicate bearish momentum.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -1000
+              max_value: 1000
+              config:
+                where: "macd is not null"
+
+      - name: macd_signal
+        description: |
+          MACD Signal line: 9-day EMA of the MACD line.
+          Used to generate buy/sell signals via MACD crossovers.
+          When MACD crosses above signal line, it generates a bullish signal.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -1000
+              max_value: 1000
+              config:
+                where: "macd_signal is not null"
+
+      - name: macd_histogram
+        description: |
+          MACD Histogram: MACD line minus Signal line.
+          Visual representation of the difference between MACD and its signal line.
+          Positive (green) indicates bullish momentum, negative (red) indicates bearish momentum.
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: -1000
+              max_value: 1000
+              config:
+                where: "macd_histogram is not null"

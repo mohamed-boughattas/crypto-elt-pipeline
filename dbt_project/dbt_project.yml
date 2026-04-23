@@ -10,13 +10,13 @@ seed-paths: ["seeds"]
 
 models:
   crypto_elt_pipeline:
-    # Silver Layer: Cleaned and normalized data
     staging:
       +materialized: incremental
       +schema: staging
       +dagster_group: "Silver"
-    # Gold Layer: Analytical business models
     marts:
       +materialized: table
       +schema: mart
       +dagster_group: "Gold"
+  elementary:
+    +schema: "elementary"

@@ -32,6 +32,33 @@ sources:
           owner: "Data Engineering Team"
           business_owner: "Trading Analytics"
 
+        tests:
+          - elementary.volume_anomalies:
+              arguments:
+                timestamp_column: recorded_at
+                anomaly_sensitivity: 2.5
+                detection_period:
+                  period: day
+                  count: 1
+                training_period:
+                  period: day
+                  count: 14
+                time_bucket:
+                  period: day
+                  count: 1
+              config:
+                tags: ["elementary"]
+                severity: warn
+          - elementary.freshness_anomalies:
+              arguments:
+                timestamp_column: recorded_at
+                training_period:
+                  period: day
+                  count: 7
+              config:
+                tags: ["elementary"]
+                severity: warn
+
         columns:
           - name: coin
             description: |
@@ -109,6 +136,20 @@ models:
       - Invalid records (null timestamps, non-positive prices) are filtered
       - Duplicate timestamps are deduplicated (latest ingested_at wins)
       - Currency is standardized to USD
+
+    tests:
+      - elementary.volume_anomalies:
+          arguments:
+            timestamp_column: recorded_at
+          config:
+            tags: ["elementary"]
+            severity: warn
+      - elementary.all_columns_anomalies:
+          arguments:
+            exclude_regexp: "^(coin|currency|ingested_at|recorded_at)$"
+          config:
+            tags: ["elementary"]
+            severity: warn
 
     columns:
       - name: coin
