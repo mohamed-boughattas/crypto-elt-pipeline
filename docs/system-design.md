@@ -213,9 +213,9 @@ class EnhancedMarketSchema(pa.DataFrameModel):
     currency: str = pa.Field(nullable=False)
     ingested_at: pendulum.DateTime = pa.Field(nullable=False)
     recorded_at: pendulum.DateTime = pa.Field(nullable=False)
-    price: float = pa.Field(gt=0, nullable=False)  # Must be positive
-    market_cap: float = pa.Field(gt=0, nullable=False)
-    volume: float = pa.Field(gt=0, nullable=False)
+    price: float = pa.Field(ge=0, nullable=False)  # Must be non-negative
+    market_cap: float = pa.Field(ge=0, nullable=False)
+    volume: float = pa.Field(ge=0, nullable=False)
 ```
 
 #### Silver Layer: `staging.stg_crypto_prices`
@@ -368,7 +368,7 @@ fig = go.Figure(data=[go.Candlestick(
 
 ## 🔄 Data Flow
 
-1. **Trigger**: User runs `make pipeline` or Dagster materializes assets
+1. **Trigger**: User runs `just pipeline` or Dagster materializes assets
 2. **Extract**: PyAirbyte fetches CoinGecko data for each partition (coin)
 3. **Load**: Raw nested data lands in `raw.crypto_prices` (Bronze)
 4. **Transform Silver**: dbt unnests and cleans data → `staging.stg_crypto_prices`
@@ -437,10 +437,10 @@ fig = go.Figure(data=[go.Candlestick(
 - 10 cryptocurrencies, multiple years of data
 - All tests passing with 100% success rate
 - SQLFluff compliant with 0 warnings
-- **91 total tests** covering data quality, transformations, and integration
+- **119 total tests** covering data quality, transformations, and integration
 - **Enhanced data quality gates** with comprehensive validation
 
-### 3. DuckDB Columnar Storage
+### 4. DuckDB Columnar Storage
 
 - Only reads needed columns
 - Vectorized execution (SIMD)
@@ -452,14 +452,13 @@ fig = go.Figure(data=[go.Candlestick(
 - Isolated execution per partition
 - Independent retry policies
 
-### 5. Enhanced Performance & Quality Features
+### 6. Enhanced Performance & Quality Features
 
 **Impact**: Improved reliability, maintainability, and data quality
 
-- **Rate limiting with exponential backoff**: Prevents API throttling and improves reliability
 - **Memory-efficient data processing**: Optimized DataFrame operations and connection pooling
 - **Smart refresh logic**: Always re-processes current day for intra-day accuracy
-- **Comprehensive test coverage**: 91 tests covering data quality, transformations, and integration
+- **Comprehensive test coverage**: 119 tests covering data quality, transformations, and integration
 - **Strict type checking**: pyright integration with CI for better code quality
 - **Enhanced error handling**: Better logging and user feedback throughout the pipeline
 - **Code quality automation**: Pre-commit hooks with Ruff, SQLFluff, and pyright

@@ -47,7 +47,7 @@ Use DuckDB for embedded analytics database.
 
 ### Positive
 
-- Developers can start working immediately with `make pipeline`
+- Developers can start working immediately with `just pipeline`
 - Fast query performance for time-series aggregations
 - Easy to backup and version control database file
 - Seamless integration with Polars I/O manager

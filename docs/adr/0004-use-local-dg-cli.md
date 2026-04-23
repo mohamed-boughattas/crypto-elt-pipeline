@@ -47,7 +47,7 @@ Use Local dg CLI for development environment instead of Docker Compose.
 
 2. **Development Speed Priority**: This is a learning/portfolio project where rapid iteration and experimentation are more valuable than production-grade infrastructure.
 
-3. **Modern Tooling Stack**: The current setup with `uv`, `dg CLI`, and Makefile provides excellent developer experience without container overhead.
+3. **Modern Tooling Stack**: The current setup with `uv` and `dg CLI` provides excellent developer experience without container overhead.
 
 4. **Industry Trend**: Modern data engineering teams are moving toward local development with containerized production, not containerized development.
 
@@ -79,9 +79,8 @@ Use Local dg CLI for development environment instead of Docker Compose.
 ### Mitigations
 
 - **Comprehensive Documentation**: Excellent setup guide in `docs/setup-guide.md`
-- **Makefile Automation**: Simplified commands for common operations
+- **justfile Automation**: Simplified commands for common operations
 - **Pre-commit Hooks**: Consistent code quality enforcement
-- **Production Deployment Guide**: Separate documentation for production setup
 
 ## Migration Path
 
@@ -90,7 +89,7 @@ Use Local dg CLI for development environment instead of Docker Compose.
 - Local development with `dg` CLI
 - DuckDB embedded database
 - uv for dependency management
-- Makefile for automation
+- justfile for automation
 
 ### Future Enhancements (Optional)
 
@@ -103,7 +102,7 @@ Use Local dg CLI for development environment instead of Docker Compose.
 If Docker Compose becomes necessary in the future:
 
 1. Create `docker-compose.yml` with Dagster, DuckDB, and dependencies
-2. Update Makefile to support both local and Docker execution
+2. Update justfile to support both local and Docker execution
 3. Add volume mounts for DuckDB database file
 4. Update documentation accordingly
 

@@ -9,7 +9,7 @@ Comprehensive guide to testing the Crypto ELT Pipeline.
 This project follows a pragmatic testing approach:
 
 - **Unit tests** for core business logic and data transformations
-- **Schema validation tests** for data contracts
+- **Schema validation tests** for data quality
 - **API tests** for FastAPI endpoints and data serving
 - **Data quality tests** for business rule validation
 
@@ -28,13 +28,13 @@ Tests are designed to be:
 Ensure you have the development dependencies installed:
 
 ```bash
-make setup
+just setup
 ```
 
 ### Run All Tests
 
 ```bash
-make test
+just test
 ```
 
 Or directly with pytest:
@@ -46,7 +46,7 @@ uv run pytest tests/ -v
 ### Run with Coverage
 
 ```bash
-make test-cov
+just test-cov
 ```
 
 This generates a coverage report showing which code is tested.
@@ -72,15 +72,16 @@ uv run pytest tests/test_schemas.py -v
 tests/
 ├── __init__.py           # Package marker
 ├── conftest.py           # Shared fixtures
-├── test_api.py           # FastAPI endpoint tests (23 tests)
-├── test_config.py        # Configuration tests (23 tests)
-├── test_crypto_db.py     # Database utility tests (9 tests)
-├── test_data_quality.py  # Data quality validation tests (8 tests)
-├── test_schemas.py       # Pandera schema tests (11 tests)
-└── test_transform.py     # Data transformation tests (17 tests)
+├── test_api.py           # FastAPI endpoint tests (27 tests)
+├── test_config.py        # Configuration tests (21 tests)
+├── test_crypto_db.py     # Database utility tests (15 tests)
+├── test_data_quality.py  # Data quality validation tests (7 tests)
+├── test_indicators.py    # Technical indicator tests (17 tests)
+├── test_schemas.py       # Pandera schema tests (12 tests)
+└── test_transform.py     # Data transformation tests (20 tests)
 ```
 
-**Total: 91 tests**
+**Total: 119 tests**
 
 ### Test Coverage Areas
 
@@ -90,6 +91,7 @@ tests/
 - **Schema Validation Tests**: Pandera schemas for raw and enhanced data
 - **Data Transformation Tests**: Data ingestion, merging, resampling, deduplication
 - **Data Quality Tests**: Business rules, temporal consistency, data integrity
+- **Indicator Tests**: Technical indicator calculations (SMA crossover, MaxDrawdown, Sharpe ratio)
 
 ---
 
@@ -111,7 +113,7 @@ class TestAPIEndpoints:
     def test_get_candlesticks_success(self, client, mock_db_connection):
         """Test get candlesticks endpoint with valid data."""
         mock_db_connection.execute.return_value.fetchall.return_value = [
-            ("2026-03-01", "bitcoin", 42500.0, 43000.0, 42000.0, 42800.0, 25000000000.0, 2.38, 24)
+            ("2026-03-01", "bitcoin", 42500.0, 43000.0, 42000.0, 42800.0, 25000000000.0, 2.38, 24, 42650.0, 42400.0, 42600.0, 43200.0, 42000.0, 2.81, 0.67, 0.71, 1000.0, 58.3, 150.5, 145.2, 5.3)
         ]
         response = client.get("/api/v1/candlesticks/bitcoin")
         assert response.status_code == 200
@@ -119,42 +121,6 @@ class TestAPIEndpoints:
         assert len(data) == 1
         assert data[0]["coin"] == "bitcoin"
         assert data[0]["open_price"] == 42500.0
-
-    def test_rate_limiting(self, client, mock_db_connection):
-        """Test rate limiting functionality."""
-        # Mock database responses to return valid data
-        mock_row = (
-            date(2026, 3, 1),
-            "bitcoin",
-            42500.0,
-            43000.0,
-            42000.0,
-            42800.0,
-            25000000000.0,
-            2.38,
-            24,
-            42650.0,
-            42400.0,
-            42700.0,
-            43000.0,
-            42400.0,
-            600.0,
-            0.5,
-            0.71,
-            1000.0,
-        )
-        mock_db_connection.execute.return_value.fetchall.return_value = [mock_row]
-
-        # Make a few requests - rate limiting should work but we won't test exact limits
-        # due to test environment variability
-        for _ in range(5):
-            response = client.get("/api/v1/candlesticks/bitcoin")
-            assert response.status_code == 200  # Should succeed for a few requests
-
-        # Just verify that rate limiting headers are present
-        response = client.get("/api/v1/candlesticks/bitcoin")
-        assert "X-RateLimit-Limit" in response.headers
-        assert "X-RateLimit-Period" in response.headers
 ```
 
 ### 2. Config Tests (`test_config.py`)
@@ -379,9 +345,7 @@ class TestBusinessRules:
 
 ### 7. Integration Testing
 
-Integration tests are not currently part of the automated test suite. For manual testing of the complete pipeline, refer to the [Manual Testing Guide](../MANUAL_TESTING.md).
-
-**Note:** Integration tests require a local database and are skipped in CI.
+Manual integration testing of the complete pipeline can be done by running `just pipeline` and verifying data in the database with `just status`.
 
 ---
 

@@ -234,7 +234,7 @@ Done. PASS=46 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=46
 
 **Enhanced Test Coverage:**
 
-- **Total Tests**: 91 tests across all layers
+- **Total Tests**: 119 tests across all layers
 - **Source Tests (8)**: Schema validation for raw API data
 - **Silver Layer Tests (14)**: Data cleaning and validation
 - **Gold Layer Tests (24)**: Business logic and financial calculations
@@ -339,6 +339,10 @@ select * from with_smas order by coin, trade_date
 | `bb_lower` | DOUBLE | Bollinger Band lower band (Middle - 2σ) |
 | `bb_width` | DOUBLE | Bollinger Band width as percentage of middle band |
 | `bb_position` | DOUBLE | Price position relative to Bollinger Bands (0-1 scale) |
+| `rsi` | DOUBLE | Relative Strength Index (14-period) |
+| `macd` | DOUBLE | MACD line (12-period EMA - 26-period EMA) |
+| `macd_signal` | DOUBLE | MACD signal line (9-period EMA of MACD) |
+| `macd_histogram` | DOUBLE | MACD histogram (MACD - signal line) |
 
 ---
 
@@ -466,6 +470,8 @@ The Gold layer uses reusable macros from `dbt_project/macros/financial_calculati
 | `calculate_simple_moving_average(col, window)` | SMA with configurable window |
 | `calculate_price_change(open, close)` | Daily price change percentage |
 | `calculate_price_range(high, low)` | Absolute price range |
+| `calculate_rsi(col, period)` | Relative Strength Index |
+| `calculate_macd(col, fast, slow, signal)` | MACD indicator |
 
 **Performance Results (Actual):**
 
@@ -534,9 +540,9 @@ class EnhancedMarketSchema(pa.DataFrameModel):
     currency: str = pa.Field(nullable=False)
     ingested_at: pendulum.DateTime = pa.Field(nullable=False)
     recorded_at: pendulum.DateTime = pa.Field(nullable=False)
-    price: float = pa.Field(gt=0, nullable=False)  # Prices must be positive
-    market_cap: float = pa.Field(gt=0, nullable=False)  # Market cap must be positive
-    volume: float = pa.Field(gt=0, nullable=False)  # Volume must be positive
+    price: float = pa.Field(ge=0, nullable=False)  # Prices must be non-negative
+    market_cap: float = pa.Field(ge=0, nullable=False)  # Market cap must be non-negative
+    volume: float = pa.Field(ge=0, nullable=False)  # Volume must be non-negative
 ```
 
 **Silver (Staging)**:
@@ -604,9 +610,9 @@ uv run dbt test --verbose
 
 **Quality Assurance Results:**
 
-- **Total Tests**: 91 tests across all layers
-- **Test Categories**: Configuration (23), Schema (11), Transform (17), Data Quality (8), Database (9), API (23)
-- **Success Rate**: 100% (91/91 tests passing)
+- **Total Tests**: 119 tests across all layers
+- **Test Categories**: Configuration (21), Schema (12), Transform (20), Data Quality (7), Database (15), API (27), Indicators (17)
+- **Success Rate**: 100% (119/119 tests passing)
 - **Coverage**: All critical data paths, business rules, and integration scenarios
 - **Performance**: Tests complete in ~5 seconds
 - **Enhanced Coverage**: Includes comprehensive data quality gates and integration validation
@@ -671,7 +677,7 @@ dbt run --select staging.*
 dbt run --select marts.*
 
 # Run with dependencies
-dbt run --select +fct_daily_btc_candlesticks
+dbt run --select +fct_crypto_candlesticks
 
 # Test all models
 dbt test

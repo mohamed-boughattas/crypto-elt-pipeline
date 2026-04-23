@@ -10,7 +10,7 @@ Complete installation and configuration guide for the Crypto ELT Pipeline.
 
 | Software   | Version | Purpose                             |
 | ---------- | ------- | ----------------------------------- |
-| **Python** | 3.10+   | Runtime environment                 |
+| **Python** | 3.12-3.14   | Runtime environment                 |
 | **uv**     | Any     | Package manager                     |
 | **Docker** | Any     | Required for PyAirbyte connectors   |
 | **Git**    | Any     | Version control                     |
@@ -80,7 +80,7 @@ crypto-elt-pipeline/
 ├── src/
 ├── dbt_project/
 ├── streamlit_dashboard/
-├── Makefile
+├── justfile
 ├── pyproject.toml
 └── README.md
 ```
@@ -91,7 +91,7 @@ crypto-elt-pipeline/
 
 ```bash
 # Create virtual environment and install dependencies
-make setup
+just setup
 ```
 
 **What this does:**
@@ -128,7 +128,7 @@ docker info
 **Run everything with one command:**
 
 ```bash
-make start
+just start
 ```
 
 **This will:**
@@ -150,7 +150,7 @@ If you prefer step-by-step execution:
 ### 1. Run Data Pipeline
 
 ```bash
-make pipeline
+just pipeline
 ```
 
 **What happens:**
@@ -181,7 +181,7 @@ make pipeline
 ls -lh data/crypto.duckdb
 
 # Query from command line
-make pipeline
+just pipeline
 ```
 
 ---
@@ -210,7 +210,7 @@ uv run dg dev
 ### 3. Launch Streamlit Dashboard
 
 ```bash
-make dashboard
+just dashboard
 ```
 
 **Access:**
@@ -341,128 +341,46 @@ ls -la .dagster_home
 
 ## 🧪 Running Tests
 
-The project includes a comprehensive test suite for validating core functionality with **91 tests** covering data quality, transformations, and integration scenarios.
+The project includes a comprehensive test suite for validating core functionality with **119 tests** covering data quality, transformations, and integration scenarios.
 
 ### Run All Tests
 
 ```bash
-make test
+just test
 ```
 
 ### Run with Coverage
 
 ```bash
-make test-cov
+just test-cov
 ```
 
 ### Expected Output
 
 ```text
 ============================= test session starts ==============================
-collected 91 items
+collected 119 items
 
-tests/test_config.py::TestConfig::test_load_config_exists PASSED
-tests/test_config.py::TestConfig::test_get_config_returns_config PASSED
-tests/test_config.py::TestConfig::test_config_has_coins PASSED
-tests/test_config.py::TestConfig::test_config_has_api_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_ingestion_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_monitoring_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_database_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_api_docker_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_retry_settings PASSED
-tests/test_config.py::TestConfig::test_config_has_pipeline_settings PASSED
-tests/test_config.py::TestConfigCoins::test_coins_have_required_fields PASSED
-tests/test_config.py::TestConfigCoins::test_enabled_coins_filter PASSED
-tests/test_config.py::TestConfigCoins::test_coin_ids_list PASSED
-tests/test_config.py::TestConfigCoins::test_coin_colors_mapping PASSED
-tests/test_config.py::TestConfigCoins::test_enabled_coin_ids PASSED
-tests/test_config.py::TestConstants::test_duckdb_path_is_defined PASSED
-tests/test_config.py::TestConstants::test_duckdb_path_has_correct_name PASSED
-tests/test_config.py::TestConstants::test_duckdb_path_in_data_directory PASSED
-tests/test_config.py::TestConstants::test_project_root_is_defined PASSED
-tests/test_config.py::TestConstants::test_project_root_exists PASSED
-tests/test_crypto_db.py::TestGetLatestTimestamp::test_returns_latest_timestamp PASSED
-tests/test_crypto_db.py::TestGetLatestTimestamp::test_returns_none_when_no_data PASSED
-tests/test_crypto_db.py::TestGetLatestTimestamp::test_calculate_days_to_fetch_logic PASSED
-tests/test_crypto_db.py::TestGetExistingData::test_returns_dataframe_schema PASSED
-tests/test_crypto_db.py::TestGetExistingData::test_returns_empty_for_missing_data PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_returns_default_when_none_timestamp PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_returns_minimum_one_day PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_returns_correct_days_difference PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_caps_at_default_days PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_handles_zero_days_ago PASSED
-tests/test_crypto_db.py::TestCalculateDaysToFetch::test_custom_default_days PASSED
-tests/test_data_quality.py::TestDataIntegrity::test_data_integrity_constraints PASSED
-tests/test_data_quality.py::TestDataIntegrity::test_ohlc_consistency PASSED
-tests/test_data_quality.py::TestDataIntegrity::test_temporal_data_quality PASSED
-tests/test_data_quality.py::TestBusinessRules::test_positive_prices PASSED
-tests/test_data_quality.py::TestBusinessRules::test_positive_market_cap PASSED
-tests/test_data_quality.py::TestBusinessRules::test_positive_volume PASSED
-tests/test_data_quality.py::TestBusinessRules::test_data_completeness PASSED
-tests/test_data_quality.py::TestSchemaValidation::test_raw_schema_validation PASSED
-tests/test_data_quality.py::TestSchemaValidation::test_enhanced_schema_validation PASSED
-tests/test_data_quality.py::TestSchemaValidation::test_negative_price_fails_validation PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_valid_raw_data_passes PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_missing_prices_column_fails PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_missing_market_caps_column_fails PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_missing_total_volumes_column_fails PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_extra_columns_allowed PASSED
-tests/test_schemas.py::TestRawMarketChartSchema::test_empty_dataframe_passes PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_valid_flattened_data_passes PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_missing_coin_column_fails PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_missing_price_column_fails PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_negative_price_fails PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_zero_volume_passes PASSED
-tests/test_schemas.py::TestEnhancedMarketSchema::test_extra_columns_allowed PASSED
-tests/test_transform.py::TestUnnestMarketData::test_empty_raw_data PASSED
-tests/test_transform.py::TestUnnestMarketData::test_single_data_point PASSED
-tests/test_transform.py::TestUnnestMarketData::test_multiple_data_points PASSED
-tests/test_transform.py::TestUnnestMarketData::test_different_coins PASSED
-tests/test_transform.py::TestUnnestMarketData::test_different_currency PASSED
-tests/test_transform.py::TestResampleToHourly::test_empty_dataframe PASSED
-tests/test_transform.py::TestResampleToHourly::test_single_hour PASSED
-tests/test_transform.py::TestResampleToHourly::test_multiple_hours PASSED
-tests/test_transform.py::TestResampleToHourly::test_resample_5min_to_hourly PASSED
-tests/test_transform.py::TestResampleToHourly::test_uses_last_price PASSED
-tests/test_transform.py::TestMergeData::test_empty_existing PASSED
-tests/test_transform.py::TestMergeData::test_empty_new PASSED
-tests/test_transform.py::TestMergeData::test_deduplication PASSED
-tests/test_transform.py::TestMergeData::test_concatenation PASSED
-tests/test_transform.py::TestSchemaValidation::test_raw_schema_valid PASSED
-tests/test_api.py::TestAPIEndpoints::test_health_check_success PASSED
-tests/test_api.py::TestAPIEndpoints::test_health_check_database_not_found PASSED
-tests/test_api.py::TestAPIEndpoints::test_health_check_database_connection_failed PASSED
-tests/test_api.py::TestAPIEndpoints::test_list_coins_success PASSED
-tests/test_api.py::TestAPIEndpoints::test_list_coins_empty PASSED
-tests/test_api.py::TestAPIEndpoints::test_list_coins_database_error PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_success PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_with_date_filters PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_with_days_limit PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_invalid_days_parameter PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_coin_not_found PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_candlesticks_database_error PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_latest_data_success PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_latest_data_empty PASSED
-tests/test_api.py::TestAPIEndpoints::test_get_latest_data_database_error PASSED
-tests/test_api.py::TestAPIEndpoints::test_root_endpoint PASSED
-tests/test_api.py::TestAPIEndpoints::test_cors_headers PASSED
-tests/test_api.py::TestAPIEndpoints::test_openapi_documentation PASSED
-tests/test_api.py::TestAPIEndpoints::test_redoc_documentation PASSED
-tests/test_api.py::TestAPIValidation::test_get_candlesticks_invalid_date_format PASSED
-tests/test_api.py::TestAPIValidation::test_get_candlesticks_negative_days PASSED
-tests/test_api.py::TestAPIValidation::test_get_candlesticks_zero_days PASSED
-tests/test_api.py::TestAPIErrorHandling::test_database_connection_error_handling PASSED
+tests/test_api.py ...........................  PASSED  [ 23%]
+tests/test_config.py .....................     PASSED  [ 21%]
+tests/test_crypto_db.py ..................     PASSED  [ 15%]
+tests/test_data_quality.py ...............     PASSED  [  7%]
+tests/test_indicators.py ................      PASSED  [ 17%]
+tests/test_schemas.py ...................      PASSED  [ 12%]
+tests/test_transform.py ..................      PASSED  [ 20%]
 
-======================= 91 passed in 9.16s =======================
+======================= 119 passed in 3.57s =======================
 ```
 
 ### Test Categories
 
-- **Configuration Tests (23)**: Path validation, project structure, and configuration loading
-- **Schema Tests (11)**: Pandera validation for raw and enhanced data contracts
-- **Ingestion Tests (17)**: Data transformations, incremental loading, merging, and resampling
-- **Data Quality Tests (8)**: OHLC consistency and business logic validation
-- **Database Tests (9)**: DuckDB operations, timestamp retrieval, and data fetching
+- **Configuration Tests (21)**: Path validation, project structure, and configuration loading
+- **Schema Tests (12)**: Pandera validation for raw and enhanced data
+- **Transform Tests (20)**: Data transformations, incremental loading, merging, and resampling
+- **Data Quality Tests (7)**: OHLC consistency and business logic validation
+- **Database Tests (15)**: DuckDB operations, timestamp retrieval, and data fetching
+- **API Tests (27)**: FastAPI endpoints, request validation, and error handling
+- **Indicator Tests (17)**: Technical indicator calculations (SMA, MaxDrawdown, Sharpe)
 
 > **Detailed testing guide:** See [Testing Guide](testing.md)
 
@@ -518,10 +436,10 @@ uv run sqlfluff lint models/marts/fct_crypto_candlesticks.sql
 
 ```bash
 # Clean temporary files (keeps database)
-make clean
+just clean
 
 # Full cleanup (removes database too)
-make clean-all
+just deep-clean
 
 # Remove only Dagster metadata
 rm -rf .dagster_home/
@@ -572,24 +490,22 @@ uv run dg dev --port 3001
 
 ---
 
-### Issue: `make: command not found`
+### Issue: `just: command not found`
 
 **Solution:**
 
-**macOS:**
-
 ```bash
-xcode-select --install
+# Install just (macOS/Linux)
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/bin
+
+# Or via Homebrew (macOS)
+brew install just
+
+# Or via Cargo (Linux)
+cargo install just
 ```
 
-**Linux (Ubuntu/Debian):**
-
-```bash
-sudo apt-get install build-essential
-```
-
-**Alternative**: Run commands directly
-
+**Alternative**: Run commands directly with `uv run`:
 ```bash
 uv sync
 mkdir -p data .dagster_home
@@ -655,8 +571,8 @@ rm data/crypto.duckdb.wal
 
 ```bash
 # Re-run pipeline to refresh data
-make clean
-make pipeline
+just clean
+just pipeline
 
 # Run tests again
 cd dbt_project
@@ -677,10 +593,10 @@ uv run dbt test
 
 ```bash
 # Ensure pipeline has run first
-make pipeline
+just pipeline
 
 # Then launch dashboard
-make dashboard
+just dashboard
 ```
 
 ---
@@ -701,16 +617,16 @@ After successful setup:
 
 ```bash
 # Run full pipeline
-make start
+just start
 
 # Run pipeline only (no dashboard)
-make pipeline
+just pipeline
 
 # Open Dagster UI
-make dev
+just dev
 
 # Open dashboard
-make dashboard
+just dashboard
 
 # Run dbt tests
 cd dbt_project && uv run dbt test
@@ -719,10 +635,10 @@ cd dbt_project && uv run dbt test
 cd dbt_project && uv run dbt docs generate && uv run dbt docs serve
 
 # Clean temporary files
-make clean
+just clean
 
 # Full cleanup
-make deep-clean
+just deep-clean
 ```
 
 ---

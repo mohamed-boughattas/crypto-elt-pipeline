@@ -62,6 +62,19 @@ Testing strategy and writing tests.
 
 ---
 
+### [🔌 API Reference](api-reference.md)
+
+REST API documentation and usage examples.
+
+**Topics covered:**
+
+- Available endpoints
+- Data model
+- Usage examples
+- Error handling
+
+---
+
 ## 🎯 Quick Navigation
 
 | What you want to do        | Where to look                      |

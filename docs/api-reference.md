@@ -209,6 +209,10 @@ curl http://localhost:8000/api/v1/latest
 | `bb_position`      | number  | Price position relative to Bollinger Bands (0-1 scale) | 0.67          |
 | `daily_change_pct` | number  | Daily price change percentage                          | 0.71          |
 | `price_range`      | number  | Absolute price range (high - low)                      | 1000.0        |
+| `rsi`              | number  | Relative Strength Index (14-period)                    | 58.3          |
+| `macd`             | number  | MACD line (12-period EMA - 26-period EMA)              | 150.5         |
+| `macd_signal`      | number  | MACD signal line (9-period EMA of MACD)                | 145.2         |
+| `macd_histogram`   | number  | MACD histogram (MACD - signal line)                    | 5.3           |
 
 ---
 
@@ -218,7 +222,7 @@ curl http://localhost:8000/api/v1/latest
 
 ```python
 import requests
-import pandas as pd
+import polars as pl
 
 class CryptoAPIClient:
     def __init__(self, base_url="http://localhost:8000"):
@@ -235,13 +239,13 @@ class CryptoAPIClient:
         params = {"days": days}
         response = requests.get(f"{self.base_url}/api/v1/candlesticks/{coin}", params=params)
         response.raise_for_status()
-        return pd.DataFrame(response.json())
+        return pl.DataFrame(response.json())
 
     def get_latest_data(self):
         """Get latest data for all coins."""
         response = requests.get(f"{self.base_url}/api/v1/latest")
         response.raise_for_status()
-        return pd.DataFrame(response.json())
+        return pl.DataFrame(response.json())
 
 # Usage
 client = CryptoAPIClient()
@@ -376,46 +380,6 @@ curl -X GET "http://localhost:8000/api/v1/latest" -H "accept: application/json"
 
 ## ⚡ Performance Considerations
 
-### Rate Limiting
-
-- **Default rate limiting**: 100 requests per 60 seconds per IP
-- **Test environment**: Can be configured with environment variables
-- **Rate limit headers**: `X-RateLimit-Limit` and `X-RateLimit-Period` included in responses
-- **Rate limit exceeded**: Returns 429 status code with error message
-- **Recommendation**: Implement exponential backoff for failed requests
-- **Caching**: Consider implementing client-side caching for frequently accessed data
-
-#### Environment Variables
-
-For testing or development environments, rate limiting can be configured:
-
-```bash
-# Set custom rate limits for testing
-export TEST_RATE_LIMIT=1000
-export TEST_RATE_PERIOD=60
-
-# Default values (used when TEST_* variables not set)
-export API_RATE_LIMIT=100
-export API_RATE_PERIOD=60
-```
-
-#### Rate Limit Headers
-
-All API responses include rate limiting information:
-
-```http
-X-RateLimit-Limit: 100
-X-RateLimit-Period: 60
-```
-
-#### Rate Limit Exceeded Response
-
-```json
-{
-  "detail": "Rate limit exceeded. Maximum 100 requests per 60 seconds."
-}
-```
-
 ### Query Optimization
 
 - **Date ranges**: Use specific date ranges for better performance
@@ -432,33 +396,34 @@ X-RateLimit-Period: 60
 
 ## 🔌 Integration Examples
 
-### With Pandas (Python)
+### With Polars (Python)
 
 ```python
 import requests
-import pandas as pd
+import polars as pl
 
 def fetch_crypto_data(coin, days=30):
-    """Fetch crypto data and return as pandas DataFrame."""
+    """Fetch crypto data and return as Polars DataFrame."""
     url = f"http://localhost:8000/api/v1/candlesticks/{coin}"
     response = requests.get(url, params={"days": days})
     response.raise_for_status()
 
-    df = pd.DataFrame(response.json())
-    df['trade_date'] = pd.to_datetime(df['trade_date'])
-    df.set_index('trade_date', inplace=True)
+    df = pl.DataFrame(response.json())
+    df = df.with_columns(pl.col("trade_date").str.to_date())
 
     return df
 
 # Usage
 btc_df = fetch_crypto_data('bitcoin', days=90)
-print(btc_df.describe())
+print(btc_df.head())
 
 # Technical analysis
-btc_df['price_change'] = btc_df['close_price'].pct_change()
-btc_df['volatility'] = btc_df['volatility_pct'] / 100
-print(f"Average daily return: {btc_df['price_change'].mean():.4f}")
-print(f"Average volatility: {btc_df['volatility'].mean():.4f}")
+btc_df = btc_df.with_columns(
+    pl.col("close_price").pct_change().alias("price_change"),
+    (pl.col("volatility_pct") / 100).alias("volatility")
+)
+print(f"Average daily return: {btc_df.select('price_change').mean().item():.4f}")
+print(f"Average volatility: {btc_df.select('volatility').mean().item():.4f}")
 ```
 
 ### With Chart.js (Web)
@@ -524,12 +489,11 @@ print(f"Average volatility: {btc_df['volatility'].mean():.4f}")
 
 When deploying the API to production:
 
-1. **Security**: Add authentication and authorization
-2. **Rate Limiting**: Implement request rate limiting
-3. **Caching**: Add Redis or similar for response caching
-4. **Monitoring**: Add logging and metrics collection
-5. **Load Balancing**: Consider multiple API instances
-6. **Database**: Use production database (PostgreSQL, etc.)
+1. **Security**: Add authentication and authorization (not implemented)
+2. **Caching**: Add Redis or similar for response caching (not implemented)
+3. **Monitoring**: Add logging and metrics collection
+4. **Load Balancing**: Consider multiple API instances
+5. **Database**: Use production database (PostgreSQL, etc.)
 
 ### Docker Deployment
 
