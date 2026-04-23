@@ -10,7 +10,6 @@ dependencies = [
     "dbt-duckdb>=1.10.0",
     "duckdb>=1.4.3",
     "fastapi>=0.104.0",
-    "pandas>=2.2.3",
     "pandera[polars]>=0.29.0",
     "pendulum>=3.0.0",
     "plotly>=6.5.2",
