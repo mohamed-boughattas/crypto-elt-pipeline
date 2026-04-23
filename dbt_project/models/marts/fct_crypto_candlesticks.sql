@@ -43,19 +43,26 @@ ohlc_base as (
         coin,
         date_trunc('day', recorded_at)::date as trade_date,
 
-        -- Financial OHLC aggregation using DuckDB arg_min/arg_max
-        -- These functions provide the most accurate open/close prices
         arg_min(price, recorded_at) as open_price,
         max(price) as high_price,
         min(price) as low_price,
         arg_max(price, recorded_at) as close_price,
 
-        -- Volume aggregation and data quality metrics
         sum(volume) as daily_volume,
         count(*) as samples_count
 
     from source_data
     group by coin, date_trunc('day', recorded_at)::date
+),
+
+with_price_changes as (
+    select
+        *,
+        price - lag(close_price) over (
+            partition by coin
+            order by trade_date
+        ) as price_change
+    from ohlc_base
 ),
 
 with_smas as (
@@ -69,36 +76,28 @@ with_smas as (
         daily_volume,
         samples_count,
 
-        -- Calculate volatility using reusable macro (from high/low of the day)
         {{ calculate_volatility('high_price', 'low_price') }} as volatility_pct,
 
-        -- Calculate moving averages using reusable macro
-        -- 7-day Simple Moving Average
         {{ calculate_simple_moving_average('close_price', 7) }} as sma_7,
-
-        -- 25-day Simple Moving Average
         {{ calculate_simple_moving_average('close_price', 25) }} as sma_25,
 
-        -- Bollinger Bands (20-day SMA ± 2 standard deviations)
         {{ calculate_bollinger_band_middle('close_price', 20) }} as bb_middle,
         {{ calculate_bollinger_band_upper('close_price', 20, 2) }} as bb_upper,
         {{ calculate_bollinger_band_lower('close_price', 20, 2) }} as bb_lower,
-
-        -- Bollinger Band volatility indicators
         {{ calculate_bollinger_band_width('close_price', 20, 2) }} as bb_width,
         {{ calculate_bollinger_band_position('close_price', 20, 2) }} as bb_position,
 
-        -- Additional calculated metrics for enhanced analysis
-        -- Daily price change percentage
         {{ calculate_price_change('open_price', 'close_price') }} as daily_change_pct,
+        {{ calculate_price_range('high_price', 'low_price') }} as price_range,
 
-        -- Absolute price range
-        {{ calculate_price_range('high_price', 'low_price') }} as price_range
+        {{ calculate_rsi('price_change', 14) }} as rsi,
+        {{ calculate_macd('price_change', 12, 26, 9) }} as macd,
+        {{ calculate_macd_signal('price_change', 12, 26, 9) }} as macd_signal,
+        {{ calculate_macd_histogram('price_change', 12, 26, 9) }} as macd_histogram
 
-    from ohlc_base
+    from with_price_changes
 )
 
--- Explicit column list for contract clarity and performance
 select
     coin,
     trade_date,
@@ -117,8 +116,10 @@ select
     bb_width,
     bb_position,
     daily_change_pct,
-    price_range
+    price_range,
+    rsi,
+    macd,
+    macd_signal,
+    macd_histogram
 from with_smas
-
--- Order by for optimal query performance on time-series data
 order by coin, trade_date

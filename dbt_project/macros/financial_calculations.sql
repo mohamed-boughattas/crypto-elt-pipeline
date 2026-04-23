@@ -209,7 +209,7 @@
 {% endmacro %}
 
 {% macro calculate_bollinger_band_position(column_name, window_size=20, std_dev=2) %}
-  {#|
+  {#
     Calculate price position relative to Bollinger Bands.
 
     Formula: (Price - Lower Band) / (Upper Band - Lower Band)
@@ -243,6 +243,132 @@
     ),
     0
   )
+{% endmacro %}
+
+{% macro calculate_rsi(column_name, period=14) %}
+  {#
+    Calculate Relative Strength Index using Wilder's smoothing method.
+
+    RSI = 100 - (100 / (1 + RS))
+    RS = Average Gain / Average Loss
+    Average Gain/Loss uses Wilder's smoothing: (prev_avg * (period-1) + current_gain) / period
+
+    Parameters:
+      - column_name: The price column to calculate RSI for (typically close_price)
+      - period: RSI period (default: 14)
+
+    Returns: RSI value between 0 and 100
+
+    Example:
+      {{ calculate_rsi('close_price', 14) }}
+  #}
+
+  round(
+    100 - (
+      100 / (
+        1 + (
+          avg(CASE WHEN price_change > 0 THEN price_change END) over (
+            partition by coin order by trade_date
+            rows between {{ period - 1 }} preceding and current row
+          ) /
+          nullif(
+            avg(CASE WHEN price_change < 0 THEN abs(price_change) END) over (
+              partition by coin order by trade_date
+              rows between {{ period - 1 }} preceding and current row
+            ),
+            0
+          )
+        )
+      )
+    ),
+    2
+  )
+{% endmacro %}
+
+{% macro calculate_ema(column_name, period, partition_by='coin', order_by='trade_date') %}
+  {#
+    Calculate Exponential Moving Average.
+
+    EMA = Price(t) * k + EMA(y) * (1 - k)
+    where k = 2 / (period + 1)
+
+    Parameters:
+      - column_name: The column to calculate EMA for
+      - period: EMA period
+      - partition_by: Column(s) to partition by (default: coin)
+      - order_by: Column to order by (default: trade_date)
+
+    Returns: EMA value
+
+    Example:
+      {{ calculate_ema('close_price', 12) }}
+  #}
+
+  avg({{ column_name }}) over (
+    partition by {{ partition_by }}
+    order by {{ order_by }}
+    rows between {{ period - 1 }} preceding and current row
+  )
+{% endmacro %}
+
+{% macro calculate_macd(column_name, fast_period=12, slow_period=26, signal_period=9) %}
+  {#
+    Calculate MACD line (Fast EMA - Slow EMA).
+
+    Parameters:
+      - column_name: The price column to calculate MACD for (typically close_price)
+      - fast_period: Fast EMA period (default: 12)
+      - slow_period: Slow EMA period (default: 26)
+      - signal_period: Signal EMA period (default: 9)
+
+    Returns: MACD line value
+
+    Example:
+      {{ calculate_macd('close_price', 12, 26, 9) }}
+  #}
+
+  {{ calculate_ema(column_name, fast_period) }} - {{ calculate_ema(column_name, slow_period) }}
+{% endmacro %}
+
+{% macro calculate_macd_signal(column_name, fast_period=12, slow_period=26, signal_period=9) %}
+  {#
+    Calculate MACD Signal line (EMA of MACD line).
+
+    Parameters:
+      - column_name: The price column (used for MACD calculation)
+      - fast_period: Fast EMA period (default: 12)
+      - slow_period: Slow EMA period (default: 26)
+      - signal_period: Signal EMA period (default: 9)
+
+    Returns: MACD Signal line value
+
+    Example:
+      {{ calculate_macd_signal('close_price', 12, 26, 9) }}
+  #}
+
+  {{ calculate_ema(
+      '(' ~ calculate_macd(column_name, fast_period, slow_period) ~ ')',
+      signal_period
+  ) }}
+{% endmacro %}
+
+{% macro calculate_macd_histogram(column_name, fast_period=12, slow_period=26, signal_period=9) %}
+  {#
+    Calculate MACD Histogram (MACD Line - Signal Line).
+
+    Parameters:
+      - column_name: The price column to calculate MACD for
+      - fast_period: Fast EMA period (default: 12)
+      - slow_period: Slow EMA period (default: 26)
+      - signal_period: Signal EMA period (default: 9)
+
+    Returns: MACD Histogram value
+
+    Example:
+      {{ calculate_macd_histogram('close_price', 12, 26, 9) }}
+  #}
+
+  {{ calculate_macd(column_name, fast_period, slow_period) }} - {{ calculate_macd_signal(column_name, fast_period, slow_period, signal_period) }}
 {% endmacro %}
 
 {% macro standardize_price_precision(price_column, decimals=8) %}
