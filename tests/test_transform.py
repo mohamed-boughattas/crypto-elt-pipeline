@@ -9,12 +9,16 @@ This module tests the core transformation logic including:
 
 import pendulum
 import polars as pl
+import pytest
+from pandera.errors import SchemaError
 
 from crypto_elt_pipeline.utils.crypto_transform import (
     RawMarketChartSchema,
     merge_data,
     resample_to_hourly,
     unnest_market_data,
+    validate_enhanced_data,
+    validate_raw_data,
 )
 
 
@@ -340,3 +344,77 @@ class TestSchemaValidation:
         )
         result = RawMarketChartSchema.validate(df)
         assert result is not None
+
+    def test_validate_raw_data_empty_raises(self):
+        """Empty raw DataFrame raises ValueError."""
+        empty_df = pl.DataFrame(
+            schema={
+                "prices": pl.List(pl.List(pl.Float64)),
+                "market_caps": pl.List(pl.List(pl.Float64)),
+                "total_volumes": pl.List(pl.List(pl.Float64)),
+            }
+        )
+        with pytest.raises(ValueError, match="empty"):
+            validate_raw_data(empty_df)
+
+    def test_validate_raw_data_invalid_schema_raises(self):
+        """Invalid schema raises ValueError."""
+        bad_df = pl.DataFrame(
+            {
+                "prices": [["not nested"]],
+            },
+            strict=False,
+        )
+        with pytest.raises(ValueError, match="validation failed"):
+            validate_raw_data(bad_df)
+
+    def test_validate_enhanced_data_negative_price_raises(self):
+        """Negative price in enhanced data raises SchemaError."""
+        bad_df = pl.DataFrame(
+            {
+                "coin": ["bitcoin"],
+                "currency": ["usd"],
+                "ingested_at": [pendulum.now("UTC")],
+                "recorded_at": [pendulum.now("UTC")],
+                "price": [-50.0],
+                "market_cap": [1e12],
+                "volume": [1e10],
+            }
+        )
+        with pytest.raises(SchemaError):
+            validate_enhanced_data(bad_df)
+
+    def test_unnest_multi_row_raises(self):
+        """Multi-row DataFrame raises ValueError."""
+        multi_df = pl.DataFrame(
+            {
+                "prices": [
+                    [[1700000000000.0, 45000.50]],
+                    [[1700003600000.0, 45100.25]],
+                ],
+                "market_caps": [
+                    [[1700000000000.0, 850000000000.0]],
+                    [[1700003600000.0, 852000000000.0]],
+                ],
+                "total_volumes": [
+                    [[1700000000000.0, 25000000000.0]],
+                    [[1700003600000.0, 25500000000.0]],
+                ],
+            },
+            strict=False,
+        )
+        with pytest.raises(ValueError, match="Expected exactly 1 row"):
+            unnest_market_data(multi_df, "bitcoin", "usd")
+
+    def test_unnest_mismatched_lengths_raises(self):
+        """Mismatched list lengths raise ValueError."""
+        mismatch_df = pl.DataFrame(
+            {
+                "prices": [[[1700000000000.0, 45000.50], [1700003600000.0, 45100.25]]],
+                "market_caps": [[[1700000000000.0, 850000000000.0]]],  # Only 1 item
+                "total_volumes": [[[1700000000000.0, 25000000000.0]]],
+            },
+            strict=False,
+        )
+        with pytest.raises(ValueError, match="Data length mismatch"):
+            unnest_market_data(mismatch_df, "bitcoin", "usd")

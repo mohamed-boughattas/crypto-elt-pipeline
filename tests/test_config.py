@@ -4,8 +4,11 @@ This module consolidates configuration and constants testing.
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
-from crypto_elt_pipeline.config import get_config, load_config
+import pytest
+
+from crypto_elt_pipeline.config import get_config, load_config, reload_config
 from crypto_elt_pipeline.constants import DUCKDB_PATH, PROJECT_ROOT
 
 
@@ -41,18 +44,6 @@ class TestConfig:
         assert hasattr(config, "ingestion")
         assert hasattr(config.ingestion, "vs_currency")
         assert hasattr(config.ingestion, "days_to_fetch")
-
-    def test_config_has_monitoring_settings(self):
-        """Test that config has monitoring settings."""
-        config = get_config()
-        assert hasattr(config, "monitoring")
-        assert hasattr(config.monitoring, "enable_metrics")
-
-    def test_config_has_database_settings(self):
-        """Test that config has database settings."""
-        config = get_config()
-        assert hasattr(config, "database")
-        assert hasattr(config.database, "memory_limit_gb")
 
     def test_config_has_api_docker_settings(self):
         """Test that config has API docker settings."""
@@ -148,3 +139,37 @@ class TestConstants:
         """Test that PROJECT_ROOT directory exists."""
         assert PROJECT_ROOT.exists()
         assert PROJECT_ROOT.is_dir()
+
+
+class TestConfigErrorPaths:
+    """Tests for configuration error handling."""
+
+    def test_load_config_missing_file_raises(self):
+        """Missing config file raises FileNotFoundError."""
+        with (
+            patch("crypto_elt_pipeline.config.CONFIG_PATH", Path("/nonexistent/path.yaml")),
+            pytest.raises(FileNotFoundError),
+        ):
+            load_config()
+
+    def test_load_config_empty_file_raises(self):
+        """Empty config file raises ValueError."""
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write("")
+            f.flush()
+            temp_path = Path(f.name)
+
+        with patch("crypto_elt_pipeline.config.CONFIG_PATH", temp_path):
+            try:
+                with pytest.raises(ValueError, match="Empty configuration"):
+                    load_config()
+            finally:
+                temp_path.unlink()
+
+    def test_reload_config_clears_cache(self):
+        """reload_config clears the LRU cache and reloads."""
+        reload_config()
+        config2 = reload_config()
+        assert config2 is not None

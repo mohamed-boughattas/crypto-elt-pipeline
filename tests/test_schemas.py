@@ -91,8 +91,6 @@ class TestRawMarketChartSchema:
 
     def test_empty_dataframe_passes(self):
         """Verify empty dataframe with correct schema passes."""
-        # Note: Polars infers Null type for empty lists, so we need to provide
-        # explicit schema to match the expected List(List(Float64)) type
         df = pl.DataFrame(
             {
                 "prices": pl.Series([], dtype=pl.List(pl.List(pl.Float64))),
@@ -100,7 +98,6 @@ class TestRawMarketChartSchema:
                 "total_volumes": pl.Series([], dtype=pl.List(pl.List(pl.Float64))),
             }
         )
-        # Empty DF should pass schema validation
         validated = RawMarketChartSchema.validate(df)
         assert validated.height == 0
 
@@ -143,7 +140,6 @@ class TestEnhancedMarketSchema:
                 "volume": [25000000000.0],
             }
         )
-        # This should fail due to missing required column
         with pytest.raises((SchemaError, pl.exceptions.ColumnNotFoundError)):
             EnhancedMarketSchema.validate(df)
 
@@ -159,7 +155,6 @@ class TestEnhancedMarketSchema:
                 "volume": [25000000000.0],
             }
         )
-        # This should fail due to missing required column
         with pytest.raises((SchemaError, pl.exceptions.ColumnNotFoundError)):
             EnhancedMarketSchema.validate(df)
 

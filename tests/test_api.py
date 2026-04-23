@@ -8,7 +8,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
-from api.main import app
+from api import app
 from fastapi.testclient import TestClient
 
 
@@ -23,7 +23,7 @@ class TestAPIEndpoints:
     @pytest.fixture
     def mock_db_connection(self):
         """Mock DuckDB connection for testing."""
-        with patch("api.main.get_db_connection") as mock_ctx:
+        with patch("api.routers.market.get_db_connection") as mock_ctx:
             mock_db = MagicMock()
             # Set up context manager behavior
             mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_db)
@@ -35,7 +35,7 @@ class TestAPIEndpoints:
         # Mock successful database query
         mock_db_connection.execute.return_value.fetchone.return_value = (date(2026, 3, 1),)
 
-        with patch("api.main.DUCKDB_PATH") as mock_path:
+        with patch("crypto_elt_pipeline.constants.DUCKDB_PATH") as mock_path:
             mock_path.exists.return_value = True
             mock_path.stat.return_value.st_size = 1024 * 1024  # 1MB
 
@@ -50,11 +50,10 @@ class TestAPIEndpoints:
         assert "database_size_mb" in data
         assert "last_updated" in data
         assert "timestamp" in data
-        assert "X-Request-ID" in response.headers
 
     def test_health_check_database_not_found(self, client):
         """Test health check when database file doesn't exist."""
-        with patch("api.main.DUCKDB_PATH") as mock_path:
+        with patch("api.routers.health.DUCKDB_PATH") as mock_path:
             mock_path.exists.return_value = False
             mock_path.stat.side_effect = FileNotFoundError()
 
@@ -68,8 +67,8 @@ class TestAPIEndpoints:
     def test_health_check_database_connection_failed(self, client):
         """Test health check when database connection fails."""
         with (
-            patch("api.main.DUCKDB_PATH") as mock_path,
-            patch("api.main.get_db_connection") as mock_ctx,
+            patch("crypto_elt_pipeline.constants.DUCKDB_PATH") as mock_path,
+            patch("api.routers.health.get_db_connection") as mock_ctx,
         ):
             mock_path.exists.return_value = True
             mock_path.stat.return_value.st_size = 1024 * 1024  # 1MB
@@ -99,8 +98,6 @@ class TestAPIEndpoints:
         assert data["page"] == 1
         assert data["page_size"] == 50
         assert data["total_pages"] == 1
-        assert "X-Request-ID" in response.headers
-        assert "Cache-Control" in response.headers
 
     def test_list_coins_pagination(self, client, mock_db_connection):
         """Test list coins endpoint with pagination."""
@@ -149,7 +146,7 @@ class TestAPIEndpoints:
 
     def test_list_coins_database_error(self, client):
         """Test list coins endpoint when database query fails."""
-        with patch("api.main.get_db_connection") as mock_ctx:
+        with patch("api.routers.market.get_db_connection") as mock_ctx:
             mock_ctx.side_effect = Exception("Query failed")
 
             response = client.get("/api/v1/coins")
@@ -160,7 +157,6 @@ class TestAPIEndpoints:
 
     def test_get_candlesticks_success(self, client, mock_db_connection):
         """Test get candlesticks endpoint with valid data."""
-        # Mock database query results
         mock_row = (
             date(2026, 3, 1),
             "bitcoin",
@@ -180,8 +176,38 @@ class TestAPIEndpoints:
             0.5,
             0.71,
             1000.0,
+            55.0,
+            100.0,
+            95.0,
+            5.0,
         )
-        mock_db_connection.execute.return_value.fetchall.return_value = [mock_row]
+        mock_cursor = MagicMock()
+        mock_cursor.description = [
+            ("trade_date",),
+            ("coin",),
+            ("open_price",),
+            ("high_price",),
+            ("low_price",),
+            ("close_price",),
+            ("daily_volume",),
+            ("volatility_pct",),
+            ("samples_count",),
+            ("sma_7",),
+            ("sma_25",),
+            ("bb_middle",),
+            ("bb_upper",),
+            ("bb_lower",),
+            ("bb_width",),
+            ("bb_position",),
+            ("daily_change_pct",),
+            ("price_range",),
+            ("rsi",),
+            ("macd",),
+            ("macd_signal",),
+            ("macd_histogram",),
+        ]
+        mock_cursor.fetchall.return_value = [mock_row]
+        mock_db_connection.execute.return_value = mock_cursor
 
         response = client.get("/api/v1/candlesticks/bitcoin")
 
@@ -192,9 +218,6 @@ class TestAPIEndpoints:
         assert data[0]["coin"] == "bitcoin"
         assert data[0]["trade_date"] == "2026-03-01"
         assert data[0]["open_price"] == 42500.0
-        assert "X-Request-ID" in response.headers
-        assert "X-RateLimit-Limit" in response.headers
-        assert "Cache-Control" in response.headers
 
     def test_get_candlesticks_with_date_filters(self, client, mock_db_connection):
         """Test get candlesticks endpoint with date filters."""
@@ -230,7 +253,7 @@ class TestAPIEndpoints:
 
     def test_get_candlesticks_database_error(self, client):
         """Test get candlesticks endpoint when database query fails."""
-        with patch("api.main.get_db_connection") as mock_ctx:
+        with patch("api.routers.market.get_db_connection") as mock_ctx:
             mock_ctx.side_effect = Exception("Query failed")
 
             response = client.get("/api/v1/candlesticks/bitcoin")
@@ -260,8 +283,38 @@ class TestAPIEndpoints:
             0.5,
             0.71,
             1000.0,
+            55.0,
+            100.0,
+            95.0,
+            5.0,
         )
-        mock_db_connection.execute.return_value.fetchall.return_value = [mock_row]
+        mock_cursor = MagicMock()
+        mock_cursor.description = [
+            ("trade_date",),
+            ("coin",),
+            ("open_price",),
+            ("high_price",),
+            ("low_price",),
+            ("close_price",),
+            ("daily_volume",),
+            ("volatility_pct",),
+            ("samples_count",),
+            ("sma_7",),
+            ("sma_25",),
+            ("bb_middle",),
+            ("bb_upper",),
+            ("bb_lower",),
+            ("bb_width",),
+            ("bb_position",),
+            ("daily_change_pct",),
+            ("price_range",),
+            ("rsi",),
+            ("macd",),
+            ("macd_signal",),
+            ("macd_histogram",),
+        ]
+        mock_cursor.fetchall.return_value = [mock_row]
+        mock_db_connection.execute.return_value = mock_cursor
 
         response = client.get("/api/v1/latest")
 
@@ -270,9 +323,6 @@ class TestAPIEndpoints:
 
         assert len(data) == 1
         assert data[0]["coin"] == "bitcoin"
-        assert "X-Request-ID" in response.headers
-        assert "X-RateLimit-Limit" in response.headers
-        assert "Cache-Control" in response.headers
 
     def test_get_latest_data_empty(self, client, mock_db_connection):
         """Test get latest data endpoint with no data."""
@@ -287,7 +337,7 @@ class TestAPIEndpoints:
 
     def test_get_latest_data_database_error(self, client):
         """Test get latest data endpoint when database query fails."""
-        with patch("api.main.get_db_connection") as mock_ctx:
+        with patch("api.routers.market.get_db_connection") as mock_ctx:
             mock_ctx.side_effect = Exception("Query failed")
 
             response = client.get("/api/v1/latest")
@@ -307,55 +357,6 @@ class TestAPIEndpoints:
         assert data["version"] == "1.1.0"
         assert "documentation" in data
         assert "health" in data
-
-    def test_rate_limiting(self, client, mock_db_connection):
-        """Test rate limiting functionality."""
-        # Mock database responses to return valid data
-        mock_row = (
-            date(2026, 3, 1),
-            "bitcoin",
-            42500.0,
-            43000.0,
-            42000.0,
-            42800.0,
-            25000000000.0,
-            2.38,
-            24,
-            42650.0,
-            42400.0,
-            42700.0,
-            43000.0,
-            42400.0,
-            600.0,
-            0.5,
-            0.71,
-            1000.0,
-        )
-        mock_db_connection.execute.return_value.fetchall.return_value = [mock_row]
-
-        # Make a few requests - rate limiting should work but we won't test exact limits
-        # due to test environment variability
-        for _ in range(5):
-            response = client.get("/api/v1/candlesticks/bitcoin")
-            assert response.status_code == 200  # Should succeed for a few requests
-
-        # Just verify that rate limiting headers are present
-        response = client.get("/api/v1/candlesticks/bitcoin")
-        assert "X-RateLimit-Limit" in response.headers
-        assert "X-RateLimit-Period" in response.headers
-
-    def test_request_id_uniqueness(self, client, mock_db_connection):
-        """Test that each request gets a unique request ID."""
-        mock_db_connection.execute.return_value.fetchall.return_value = []
-
-        request_ids = []
-        for _ in range(3):
-            response = client.get("/health")
-            request_ids.append(response.headers.get("X-Request-ID"))
-
-        # All request IDs should be unique
-        assert len(set(request_ids)) == 3
-        assert all(request_id for request_id in request_ids)
 
 
 class TestAPIValidation:

@@ -6,6 +6,8 @@ Tests DuckDB interaction functions including:
 - Schema validation
 """
 
+from unittest.mock import patch
+
 import pendulum
 import polars as pl
 
@@ -18,15 +20,6 @@ from crypto_elt_pipeline.utils.crypto_db import (
 
 class TestGetLatestTimestamp:
     """Tests for get_latest_timestamp function."""
-
-    def test_returns_latest_timestamp(self):
-        """Test that latest timestamp is returned correctly."""
-        # Test the pure function logic without mocking
-        # This tests the core date calculation logic
-        test_date = pendulum.datetime(2026, 3, 15, 12, 0, 0)
-        assert test_date.year == 2026
-        assert test_date.month == 3
-        assert test_date.day == 15
 
     def test_returns_none_when_no_data(self):
         """Test None handling."""
@@ -121,3 +114,45 @@ class TestCalculateDaysToFetch:
         """Test with custom default days."""
         result = calculate_days_to_fetch(None, 60)
         assert result == 60
+
+
+class TestGetLatestTimestampWithDb:
+    """Tests for get_latest_timestamp with real database."""
+
+    def test_returns_latest_timestamp_for_coin(self, crypto_db_with_data):
+        """Should return the latest timestamp for a coin that has data."""
+        with patch("crypto_elt_pipeline.utils.crypto_db.DUCKDB_PATH", crypto_db_with_data):
+            result = get_latest_timestamp("bitcoin")
+        assert result is not None
+        assert isinstance(result, pendulum.DateTime)
+
+    def test_returns_none_for_nonexistent_coin(self, crypto_db_with_data):
+        """Should return None for a coin with no data."""
+        with patch("crypto_elt_pipeline.utils.crypto_db.DUCKDB_PATH", crypto_db_with_data):
+            result = get_latest_timestamp("nonexistent_coin_xyz")
+        assert result is None
+
+    def test_returns_none_when_db_does_not_exist(self, temp_db_path):
+        """Should return None when database file does not exist."""
+        assert not temp_db_path.exists()
+        with patch("crypto_elt_pipeline.utils.crypto_db.DUCKDB_PATH", temp_db_path):
+            result = get_latest_timestamp("bitcoin")
+        assert result is None
+
+
+class TestGetExistingDataWithDb:
+    """Tests for get_existing_data with real database."""
+
+    def test_returns_data_for_existing_coin(self, crypto_db_with_data):
+        """Should return DataFrame with data for a coin that exists."""
+        with patch("crypto_elt_pipeline.utils.crypto_db.DUCKDB_PATH", crypto_db_with_data):
+            result = get_existing_data("bitcoin")
+        assert result.height >= 1
+        assert result["coin"][0] == "bitcoin"
+
+    def test_returns_empty_for_nonexistent_coin(self, crypto_db_with_data):
+        """Should return empty DataFrame for a coin with no data."""
+        with patch("crypto_elt_pipeline.utils.crypto_db.DUCKDB_PATH", crypto_db_with_data):
+            result = get_existing_data("nonexistent_coin_xyz")
+        assert isinstance(result, pl.DataFrame)
+        assert result.height == 0
