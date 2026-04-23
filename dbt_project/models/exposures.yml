@@ -9,30 +9,30 @@ exposures:
       Interactive Streamlit dashboard for cryptocurrency market analysis.
       Provides real-time metrics, OHLC candlestick charts, technical indicators,
       and multi-coin comparison capabilities.
-    
+
     depends_on:
       - ref('fct_crypto_candlesticks')
       - ref('stg_crypto_prices')
-    
+
     owner:
       name: Data Engineering Team
       email: data@example.com
-    
+
     meta:
       business_value: |
         Enables data-driven trading decisions and market trend analysis.
         Supports 10 major cryptocurrencies with technical indicators including
         RSI, MACD, Bollinger Bands, and moving averages.
-      
+
       stakeholders:
         - Trading Analysts
         - Portfolio Managers
         - Data Scientists
-      
+
       sla:
         data_freshness: "24 hours"
         availability: "99% during trading hours"
-      
+
       tags:
         - analytics
         - dashboard
