@@ -8,12 +8,11 @@ This module defines:
 from collections.abc import Iterator
 
 import dagster as dg
-import duckdb
 import pendulum
 from pendulum import Duration
 
 from crypto_elt_pipeline.config import get_config
-from crypto_elt_pipeline.constants import DUCKDB_PATH
+from crypto_elt_pipeline.utils.crypto_db import get_latest_timestamp
 
 # ------------------------------------------------------------------
 # Daily Refresh Schedule
@@ -91,55 +90,9 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
 
     # Check each coin's freshness by querying DuckDB for actual data freshness
     for coin_id in config.coin_ids:
-        try:
-            # Query DuckDB to get the latest recorded_at timestamp for this coin
-            # Using duckdb directly for sensor independence from asset execution
-            with duckdb.connect(str(DUCKDB_PATH), read_only=True) as conn:
-                result = conn.execute(
-                    "SELECT MAX(recorded_at) FROM raw.crypto_prices WHERE coin = ?",
-                    [coin_id],
-                ).fetchone()
-
-                if result and result[0]:
-                    # Convert to timezone-aware UTC datetime
-                    latest_timestamp = result[0]
-                    if latest_timestamp.tzinfo is None:
-                        latest_timestamp = pendulum.instance(latest_timestamp, tz="UTC")
-                    else:
-                        latest_timestamp = pendulum.instance(latest_timestamp)
-
-                    # Check if data is stale (older than 24 hours)
-                    if (now - latest_timestamp) > freshness_threshold:
-                        run_requests.append(
-                            dg.RunRequest(
-                                run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
-                                partition_key=coin_id,
-                                tags={
-                                    "trigger": "freshness_sensor",
-                                    "coin": coin_id,
-                                    "check_time": now.isoformat(),
-                                    "data_age_hours": int(
-                                        (now - latest_timestamp).total_seconds() / 3600
-                                    ),
-                                },
-                            )
-                        )
-                else:
-                    # No data exists for this coin, trigger a run
-                    run_requests.append(
-                        dg.RunRequest(
-                            run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
-                            partition_key=coin_id,
-                            tags={
-                                "trigger": "freshness_sensor",
-                                "coin": coin_id,
-                                "check_time": now.isoformat(),
-                                "data_age_hours": "no_data",
-                            },
-                        )
-                    )
-        except (duckdb.Error, FileNotFoundError):
-            # Database doesn't exist yet, trigger a run for all coins
+        latest_ts = get_latest_timestamp(coin_id)
+        if latest_ts is None or (now - latest_ts) > freshness_threshold:
+            data_age = int((now - latest_ts).total_seconds() / 3600) if latest_ts else "no_data"
             run_requests.append(
                 dg.RunRequest(
                     run_key=f"freshness_check_{coin_id}_{now.strftime('%Y%m%d_%H')}",
@@ -148,7 +101,7 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
                         "trigger": "freshness_sensor",
                         "coin": coin_id,
                         "check_time": now.isoformat(),
-                        "data_age_hours": "database_missing",
+                        "data_age_hours": data_age,
                     },
                 )
             )
@@ -158,14 +111,6 @@ def data_freshness_sensor(context: dg.SensorEvaluationContext) -> dg.SensorResul
         cursor=now.isoformat(),
     )
 
-
-# ------------------------------------------------------------------
-# Export schedules and sensors for Dagster definitions
-# ------------------------------------------------------------------
-# NOTE: The stale_data_alert_sensor was removed because:
-#   1. The data_freshness_sensor already handles triggering runs when data is stale
-#   2. Having both sensors could cause duplicate runs and unnecessary API calls
-#   3. The freshness sensor's partition-aware logic provides more granular control
 
 schedules = [
     daily_crypto_schedule,
