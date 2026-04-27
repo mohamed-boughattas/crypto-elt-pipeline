@@ -1,6 +1,6 @@
 # Crypto ELT Pipeline
 
-> **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Features incremental extraction (~97% fewer API calls), Medallion architecture, and full data lineage. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
+> **Modern ELT pipeline** analyzing cryptocurrency market trends through OHLC candlestick charts and volatility metrics. Features incremental extraction, Medallion architecture, and full data lineage. Built with Dagster, PyAirbyte, dbt, DuckDB, Polars, and Streamlit.
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamed-boughattas/crypto-elt-pipeline/actions/workflows/ci.yml)
@@ -38,7 +38,7 @@ Automated pipeline that:
 
 **Key Innovations:**
 
-- **Incremental extraction** reduces API calls by ~97% on daily runs
+- **Incremental extraction** significantly reduces API calls on daily runs
 - **Incremental Silver layer** for efficient data processing
 - **Automated monitoring** with data freshness and quality sensors
 
@@ -46,7 +46,7 @@ Automated pipeline that:
 
 ## 🏗️ Architecture Overview
 
-[![Architecture Diagram](docs/diagrams/diagram_architecture.jpg)](docs/diagrams/diagram_architecture.jpg)
+![Architecture Diagram](docs/diagrams/diagram_architecture.png)
 
 **Data Flow:**
 
@@ -162,7 +162,7 @@ just status
 | Operation                            | Time (Free API) | Time (Pro API) | Notes                                                      |
 | ------------------------------------ | --------------- | -------------- | ---------------------------------------------------------- |
 | **Initial load** (10 coins, 30 days) | ~3-5 min        | ~1-2 min       | First run fetches full history (parallelized)              |
-| **Daily refresh** (incremental)      | ~30-60 sec      | ~10-20 sec     | Only fetches new data (~97% fewer API calls, parallelized) |
+| **Daily refresh** (incremental)      | ~30-60 sec      | ~10-20 sec     | Only fetches new data (parallelized) |
 | **Single coin**                      | ~1-2 min        | ~15-30 sec     | Useful for testing or quick updates                        |
 | **dbt transformations**              | ~30-60 sec      | ~30-60 sec     | Same for both tiers (local processing)                     |
 | **Dashboard load**                   | ~5-10 sec       | ~5-10 sec      | Queries DuckDB directly                                    |
@@ -170,7 +170,7 @@ just status
 **Performance Improvements:**
 
 - **Parallel execution**: Bronze layer runs 4 coins simultaneously (3-5x faster)
-- **Incremental loading**: Only fetches new data since last run (~97% fewer API calls)
+- **Incremental loading**: Only fetches new data since last run
 - **Hourly resampling**: Normalizes API granularity differences automatically
 
 **Factors affecting runtime:**
@@ -240,10 +240,10 @@ crypto-elt-pipeline/
 │   ├── profiles.yml             # dbt connection profiles
 │   │
 │   ├── models/
+│   │   ├── exposures.yml        # Data exposure definitions
 │   │   ├── staging/             # Silver Layer
 │   │   │   ├── stg_crypto_prices.sql
-│   │   │   ├── staging.yml      # Data quality tests & documentation
-│   │   │   └── exposures.yml    # Data exposure definitions
+│   │   │   └── staging.yml      # Data quality tests & documentation
 │   │   └── marts/               # Gold Layer
 │   │       ├── fct_crypto_candlesticks.sql
 │   │       └── marts.yml        # OHLC validation & business logic
@@ -251,7 +251,8 @@ crypto-elt-pipeline/
 │   ├── macros/
 │   │   ├── financial_calculations.sql  # Reusable financial macros
 │   │   ├── generate_schema_name.sql   # Schema name generation
-│   │   └── get_coin_list.sql          # Dynamic coin list generation
+│   │   ├── get_coin_list.sql          # Dynamic coin list generation
+│   │   └── elementary_materialization.sql  # Elementary config
 │   │
 │   ├── seeds/
 │   │   └── coins_config.csv     # Coin configuration data
@@ -302,7 +303,7 @@ crypto-elt-pipeline/
 │   ├── diagrams/
 │   │   ├── architecture.mmd     # Mermaid architecture diagram
 │   │   ├── dashboard_demo.gif   # Streamlit dashboard demo
-│   │   └── diagram_architecture.jpg  # Architecture diagram image
+│   │   └── diagram_architecture.png  # Architecture diagram image
 │   │
 │   └── adr/                     # Architecture decision records
 │       ├── 0001-use-duckdb.md   # ADR-001: Use DuckDB instead of PostgreSQL
@@ -354,7 +355,7 @@ uv run pre-commit install
 uv run pre-commit run --all-files
 ```
 
-> **All commands:** run `just help`
+> **All commands:** run `just --list`
 
 ---
 
@@ -362,7 +363,7 @@ uv run pre-commit run --all-files
 
 ### 🚀 Performance
 
-- **Incremental extraction**: Only fetches new data since last run (~97% fewer API calls)
+- **Incremental extraction**: Only fetches new data since last run
 - **Incremental Silver layer**: Only processes new data (100x faster daily refreshes)
 - **Polars I/O Manager**: 5-10x faster than Pandas for DataFrame operations
 - **Smart refresh**: Always re-processes current day for intra-day accuracy
@@ -416,14 +417,14 @@ uv run pre-commit run --all-files
 
 ## 📚 Documentation
 
-| Document                                        | Description                                    |
-| ----------------------------------------------- | ---------------------------------------------- |
-| [📐 System Design](docs/system-design.md)       | Detailed system design & component breakdown   |
-| [🗂️ Data Modeling](docs/data-modeling.md)       | Medallion architecture & dbt transformations   |
-| [🚀 Setup Guide](docs/setup-guide.md)           | Detailed installation & configuration          |
-| [🧪 Testing Guide](docs/testing.md)             | Testing strategy & writing tests               |
-| [🔗 API Reference](docs/api-reference.md)       | REST API documentation & usage examples        |
-| [🤝 Contributing](CONTRIBUTING.md)              | Contribution guidelines & development workflow |
+| Document                                 | Description                                    |
+| ---------------------------------------- | ---------------------------------------------- |
+| [📐 System Design](docs/system-design.md) | Detailed system design & component breakdown   |
+| [🗂️ Data Modeling](docs/data-modeling.md) | Medallion architecture & dbt transformations   |
+| [🚀 Setup Guide](docs/setup-guide.md)     | Detailed installation & configuration          |
+| [🧪 Testing Guide](docs/testing.md)       | Testing strategy & writing tests               |
+| [🔗 API Reference](docs/api-reference.md) | REST API documentation & usage examples        |
+| [🤝 Contributing](CONTRIBUTING.md)        | Contribution guidelines & development workflow |
 
 ---
 
@@ -453,7 +454,7 @@ This pipeline demonstrates modern data engineering patterns:
 **Incremental Loading:**
 
 - First run: Fetches 30 days of historical data
-- Subsequent runs: Only fetches data since last timestamp (~97% fewer API calls)
+- Subsequent runs: Only fetches data since last timestamp
 - Hourly resampling: Normalizes 5-minute granularity to hourly for consistency
 
 **Database Structure:**
@@ -497,7 +498,7 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) — **46 dbt tests** + **119 unit tests**
+3. **dbt tests** for not-null & uniqueness (Silver) — **67 dbt tests** + **119 unit tests**
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
@@ -534,7 +535,7 @@ This is a personal learning project, but suggestions are welcome!
 
 - Python: Ruff formatting (auto-fixed via pre-commit)
 - SQL: SQLFluff with dbt templating
-- Commit messages: Descriptive and concise
+- Commit messages: Conventional format (`feat:`, `fix:`, `refactor:`, etc.)
 
 ---
 
