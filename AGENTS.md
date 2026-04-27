@@ -17,15 +17,19 @@
 - **Ownership**: Dagster owns Bronze (PyAirbyte → Polars). dbt owns Silver and Gold via `DbtCliResource`.
 - **Gold model**: `fct_crypto_candlesticks` with OHLC + SMA + Bollinger Bands + RSI + MACD (RSI/MACD are dbt macros, not Python).
 - **Sensors**: All in `defs/schedules.py`. No separate `sensors.py`.
+- **Dagster definitions**: `definitions.py` uses `@definitions` decorator + `load_from_defs_folder` (component-based pattern), not the traditional `Definitions()` constructor.
 
 ## Commands
 
 ```bash
 # Verification (run in this order)
-just lint          # ruff on src/ and tests/ only — does NOT cover api/ or streamlit_dashboard/
+just lint          # ruff check + ruff format --check on src/ and tests/ only — does NOT cover api/ or streamlit_dashboard/
 just lint-dbt      # SQLFluff on dbt models
 just typecheck
 just test
+
+# Coverage
+just test-cov      # pytest with coverage: src/crypto_elt_pipeline, streamlit_dashboard/indicators, api
 
 # Setup
 just setup          # uv sync + create .dagster_home + dagster.yaml
@@ -33,9 +37,9 @@ just generate-seed  # Regenerate seeds/coins_config.csv from config/coins.yaml
 
 # Pipeline
 just pipeline       # Full pipeline: Bronze (per coin) → Silver → Gold
-just pipeline-coin bitcoin  # Single coin
+just pipeline-coin bitcoin  # Single coin (Bronze ONLY — does NOT run Silver/Gold dbt transforms)
 just start          # pipeline + dashboard in one command
-just status         # Database health check
+just status         # Database health check (requires populated DB)
 
 # dbt
 just dbt-deps         # Install dbt packages (run after editing packages.yml)
@@ -43,7 +47,7 @@ just lint-dbt         # SQLFluff lint on dbt models
 just lint-dbt-fix     # SQLFluff auto-fix
 just test-dbt         # dbt test (requires dbt deps AND populated DB — run just pipeline first locally)
 just test-elementary  # Run only anomaly/schema tests
-just observability    # Generate elementary HTML report (requires populated DB)
+just observability    # Generate elementary HTML report (requires populated DB; implicitly runs dbt-deps)
 
 # Dev servers
 just dev           # Dagster UI (localhost:3000)
@@ -80,8 +84,10 @@ just deep-clean    # Removes everything including database and .dagster_home
 
 - **Docker required**: PyAirbyte needs Docker running. `just pipeline` checks `docker info` and fails if not running.
 - **chardet pin**: Pinned `<6.0.0` in `pyproject.toml` because sqlfluff pulls chardet 6.x which conflicts with requests.
-- **CI lint scope is broader**: CI runs `ruff check .` on the whole repo, but `just lint` only covers `src/ tests/`. After editing `api/` or `streamlit_dashboard/`, also run `ruff check api/ streamlit_dashboard/`.
+- **CI lint scope is broader**: CI runs `ruff check .` and `ruff format --check .` on the whole repo, but `just lint` only covers `src/ tests/`. After editing `api/` or `streamlit_dashboard/`, also run `ruff check api/ streamlit_dashboard/`.
 - **DO NOT** run `uv run dagster` or `uv run dagit` — use `dg` only.
 - **Conventional commits enforced**: pre-commit rejects non-conventional messages. Use `feat:`, `fix:`, `chore:`, etc.
 - **pip-audit/bandit**: Configured `continue-on-error: true` in CI. They report unfixable transitive vulnerabilities from airbyte's deps — documented in `.pip-audit.toml`.
 - **elementary-data vs airbyte**: `edr` CLI uses `uvx` (isolated env) because `airbyte-cdk` pins `pytz==2024.2` while `elementary-data` needs `pytz>=2025.1`. The dbt package itself is SQL-only and has no Python dependency.
+- **Coin IDs are NOT ticker symbols**: Use `ripple` (not `xrp`), `avalanche-2` (not `avalanche`), `binancecoin` (not `bnb`). Check `config/coins.yaml` for the correct `id` field.
+- **CI job chain**: `lint` and `test` run in parallel → `dbt` job runs after both pass (runs `dbt docs generate` + `edr report`). `security` job runs independently (bandit + Trivy, both `continue-on-error`).
