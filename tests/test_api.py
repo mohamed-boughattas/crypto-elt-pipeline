@@ -30,14 +30,19 @@ class TestAPIEndpoints:
             mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
             yield mock_db
 
-    def test_health_check_success(self, client, mock_db_connection):
+    def test_health_check_success(self, client):
         """Test health check endpoint when database is available."""
-        # Mock successful database query
-        mock_db_connection.execute.return_value.fetchone.return_value = (date(2026, 3, 1),)
-
-        with patch("crypto_elt_pipeline.constants.DUCKDB_PATH") as mock_path:
+        with (
+            patch("api.routers.health.DUCKDB_PATH") as mock_path,
+            patch("api.routers.health.get_db_connection") as mock_ctx,
+        ):
             mock_path.exists.return_value = True
             mock_path.stat.return_value.st_size = 1024 * 1024  # 1MB
+
+            mock_conn = MagicMock()
+            mock_conn.execute.return_value.fetchone.return_value = (date(2026, 3, 1),)
+            mock_ctx.return_value.__enter__ = MagicMock(return_value=mock_conn)
+            mock_ctx.return_value.__exit__ = MagicMock(return_value=False)
 
             response = client.get("/health")
 
@@ -67,7 +72,7 @@ class TestAPIEndpoints:
     def test_health_check_database_connection_failed(self, client):
         """Test health check when database connection fails."""
         with (
-            patch("crypto_elt_pipeline.constants.DUCKDB_PATH") as mock_path,
+            patch("api.routers.health.DUCKDB_PATH") as mock_path,
             patch("api.routers.health.get_db_connection") as mock_ctx,
         ):
             mock_path.exists.return_value = True
