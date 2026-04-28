@@ -85,7 +85,7 @@ Automated pipeline that:
 
 The interactive dashboard features real-time crypto analytics with:
 
-- 💰 **Real-time metrics**: Live price, 24h change, market cap
+- 💰 **Price metrics**: Live price, 24h high/low, volume, volatility percentage
 - 📈 **Interactive charts**: OHLC candlesticks with zoom & pan
 - 📊 **Volume analysis**: Trading volume trends over time
 - 📉 **Volatility tracking**: Daily volatility percentage
@@ -169,7 +169,6 @@ just status
 
 **Performance Improvements:**
 
-- **Parallel execution**: Bronze layer runs 4 coins simultaneously (3-5x faster)
 - **Incremental loading**: Only fetches new data since last run
 - **Hourly resampling**: Normalizes API granularity differences automatically
 
@@ -211,6 +210,8 @@ crypto-elt-pipeline/
 ├── justfile                     # Project automation (just)
 ├── pyproject.toml               # Python dependencies
 ├── uv.lock                      # Dependency lock file
+├── AGENTS.md                    # Agent operational instructions
+├── vulture_whitelist.py         # Vulture dead code detection whitelist
 │
 ├── src/crypto_elt_pipeline/     # Core Orchestration Logic
 │   ├── definitions.py           # Dagster entry point
@@ -325,24 +326,35 @@ crypto-elt-pipeline/
 ## 📋 Common Commands
 
 ```bash
+# Pipeline
 just start          # Full pipeline + dashboard (automated)
 just pipeline       # Run data pipeline (all coins)
+just pipeline-coin bitcoin  # Run pipeline for a specific coin
+
+# Quality & Verification
+just test           # Run all tests
+just test-cov       # Run tests with coverage reporting
+just typecheck      # Run pyright type checking
+just lint           # Run ruff linting and format checks
+just lint-dbt       # Lint dbt models with SQLFluff
+just lint-dbt-fix   # Auto-fix dbt linting issues
+just dead-code      # Find dead code with vulture
+
+# dbt
+just dbt-deps       # Install dbt packages
+just test-dbt       # Run dbt tests
+just test-elementary  # Run elementary anomaly/freshness tests
+just observability  # Generate elementary HTML report
+
+# Dashboard & API
 just dev            # Launch Dagster development server
 just dashboard      # Launch Streamlit dashboard
 just api            # Launch FastAPI server
-just test           # Run all tests
-just lint           # Run linting and format checks
+
+# Maintenance
 just clean          # Clean generated files (preserves history)
-just pip-audit      # Scan Python dependencies for vulnerabilities
-just bandit         # Scan code for security issues
+just deep-clean     # Full clean including run history
 just security       # Run all security scans (bandit + pip-audit)
-```
-
-### Advanced Commands
-
-```bash
-just pipeline-coin bitcoin  # Run pipeline for specific coin
-just deep-clean                  # Full clean including run history
 ```
 
 ### Development Setup
@@ -396,6 +408,12 @@ uv run pre-commit run --all-files
   - `calculate_simple_moving_average()` - Configurable window SMAs
   - `calculate_price_change()` - Daily price change percentage
   - `calculate_price_range()` - Absolute price range
+  - `calculate_bollinger_band_upper()` / `calculate_bollinger_band_lower()` / `calculate_bollinger_band_middle()` - Bollinger Bands
+  - `calculate_bollinger_band_width()` / `calculate_bollinger_band_position()` - BB volatility and price position
+  - `calculate_rsi()` - Relative Strength Index
+  - `calculate_macd()` / `calculate_macd_signal()` / `calculate_macd_histogram()` - MACD indicators
+  - `calculate_ema()` - Exponential Moving Average
+  - `standardize_price_precision()` / `validate_financial_data()` - Data quality utilities
 - **Performance optimization**: Strategic clustering and indexing for time-series queries
 - **Data quality tracking**: Sample count and completeness metrics
 - **Bollinger Bands**: Technical analysis indicators for volatility and trend analysis
@@ -498,11 +516,28 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) — **67 dbt tests** + **119 unit tests**
+3. **dbt tests** for not-null & uniqueness (Silver) — **66 dbt tests** + **119 unit tests**
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
 7. **Automated monitoring** with sensors for freshness, quality, and health
+8. **Elementary data observability** - anomaly detection, column stats, schema change tracking
+
+---
+
+## 📡 Data Observability (Elementary)
+
+[Elementary](https://elementary-data.com/) provides data observability through dbt-native anomaly detection:
+
+- **Anomaly detection tests**: Volume spikes, freshness delays, column stats drift across Bronze/Silver/Gold layers
+- **Automated monitoring**: 7 Elementary tests track data quality over time
+- **HTML report**: Generate a full observability report with `just observability`
+- **CI integration**: Elementary tests run in the `dbt` CI job after lint and test pass
+
+```bash
+just test-elementary  # Run only elementary-tagged tests
+just observability    # Generate HTML report (requires populated DB)
+```
 
 ---
 
