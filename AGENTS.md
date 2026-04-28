@@ -23,10 +23,11 @@
 
 ```bash
 # Verification (run in this order)
-just lint          # ruff check + ruff format --check on src/ and tests/ only — does NOT cover api/ or streamlit_dashboard/
+just lint          # ruff check + ruff format --check on src/, tests/, api/, streamlit_dashboard/
 just lint-dbt      # SQLFluff on dbt models
 just typecheck
 just test
+just dead-code     # vulture dead code detection (uses vulture_whitelist.py for false positives)
 
 # Coverage
 just test-cov      # pytest with coverage: src/crypto_elt_pipeline, streamlit_dashboard/indicators, api
@@ -84,7 +85,7 @@ just deep-clean    # Removes everything including database and .dagster_home
 
 - **Docker required**: PyAirbyte needs Docker running. `just pipeline` checks `docker info` and fails if not running.
 - **chardet pin**: Pinned `<6.0.0` in `pyproject.toml` because sqlfluff pulls chardet 6.x which conflicts with requests.
-- **CI lint scope is broader**: CI runs `ruff check .` and `ruff format --check .` on the whole repo, but `just lint` only covers `src/ tests/`. After editing `api/` or `streamlit_dashboard/`, also run `ruff check api/ streamlit_dashboard/`.
+- **CI lint scope**: CI runs `ruff check .` and `ruff format --check .` on the whole repo. `just lint` covers `src/ tests/ api/ streamlit_dashboard/`.
 - **DO NOT** run `uv run dagster` or `uv run dagit` — use `dg` only.
 - **Conventional commits enforced**: pre-commit rejects non-conventional messages. Use `feat:`, `fix:`, `chore:`, etc.
 - **pip-audit/bandit**: Configured `continue-on-error: true` in CI. They report unfixable transitive vulnerabilities from airbyte's deps — documented in `.pip-audit.toml`.
