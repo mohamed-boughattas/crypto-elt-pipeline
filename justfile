@@ -123,8 +123,12 @@ typecheck: setup
 
 # Run linting and format checks
 lint: setup
-    uv run ruff check src/ tests/
-    uv run ruff format --check src/ tests/
+    uv run ruff check src/ tests/ api/ streamlit_dashboard/
+    uv run ruff format --check src/ tests/ api/ streamlit_dashboard/
+
+# Find dead code with vulture
+dead-code:
+    uv run vulture src/ api/ streamlit_dashboard/ tests/ vulture_whitelist.py --min-confidence 80
 
 # Lint dbt models with SQLFluff
 lint-dbt: setup
