@@ -91,12 +91,21 @@ ignore = [
     "E501", # line too long (handled by formatter)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"vulture_whitelist.py" = ["F821", "B018"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["crypto_elt_pipeline"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+# --- Dead Code Detection (vulture) ---
+[tool.vulture]
+min_confidence = 80
+paths = ["src", "api", "streamlit_dashboard", "tests"]
+exclude = ["dbt_project/"]
 
 # --- Type Checking (pyright) ---
 [tool.pyright]
