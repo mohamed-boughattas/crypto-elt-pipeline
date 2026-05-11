@@ -275,7 +275,7 @@ crypto-elt-pipeline/
 │   ├── indicators.py            # Technical indicator calculations
 │   └── config.py                # Dashboard configuration
 │
-├── tests/                       # Test Suite (119 tests)
+├── tests/                       # Test Suite (120 tests)
 │   ├── conftest.py              # Shared fixtures
 │   ├── test_api.py              # API endpoint tests (27 tests)
 │   ├── test_config.py           # Configuration tests (21 tests)
@@ -283,7 +283,7 @@ crypto-elt-pipeline/
 │   ├── test_data_quality.py     # Data quality tests (7 tests)
 │   ├── test_indicators.py       # Technical indicator tests (17 tests)
 │   ├── test_schemas.py           # Schema validation tests (12 tests)
-│   └── test_transform.py        # Transformation tests (20 tests)
+│   └── test_transform.py        # Transformation tests (21 tests)
 │
 ├── api/                         # REST API Layer
 │   ├── main.py                  # FastAPI app factory
@@ -298,20 +298,11 @@ crypto-elt-pipeline/
 │   ├── system-design.md         # Architecture overview
 │   ├── data-modeling.md         # Medallion architecture
 │   ├── setup-guide.md           # Installation & configuration
-│   ├── testing.md               # Testing strategy
-│   ├── api-reference.md         # REST API documentation
 │   │
-│   ├── diagrams/
-│   │   ├── architecture.mmd     # Mermaid architecture diagram
-│   │   ├── dashboard_demo.gif   # Streamlit dashboard demo
-│   │   └── diagram_architecture.png  # Architecture diagram image
-│   │
-│   └── adr/                     # Architecture decision records
-│       ├── 0001-use-duckdb.md   # ADR-001: Use DuckDB instead of PostgreSQL
-│       ├── 0002-use-dagster.md  # ADR-002: Use Dagster instead of Airflow
-│       ├── 0003-use-polars.md   # ADR-003: Use Polars instead of Pandas
-│       ├── 0004-use-local-dg-cli.md  # ADR-004: Use Local dg CLI instead of Docker Compose
-│       └── README.md            # ADR index and guidelines
+│   └── diagrams/
+│       ├── architecture.mmd     # Mermaid architecture diagram
+│       ├── dashboard_demo.gif   # Streamlit dashboard demo
+│       └── diagram_architecture.png  # Architecture diagram image
 │
 ├── data/                        # DuckDB database (gitignored)
 ├── logs/                        # Root-level logs directory
@@ -440,8 +431,6 @@ uv run pre-commit run --all-files
 | [📐 System Design](docs/system-design.md) | Detailed system design & component breakdown   |
 | [🗂️ Data Modeling](docs/data-modeling.md) | Medallion architecture & dbt transformations   |
 | [🚀 Setup Guide](docs/setup-guide.md)     | Detailed installation & configuration          |
-| [🧪 Testing Guide](docs/testing.md)       | Testing strategy & writing tests               |
-| [🔗 API Reference](docs/api-reference.md) | REST API documentation & usage examples        |
 | [🤝 Contributing](CONTRIBUTING.md)        | Contribution guidelines & development workflow |
 
 ---
@@ -516,7 +505,7 @@ Multiple validation layers ensure data reliability:
 
 1. **Pandera schemas** in PyAirbyte ingestion (Bronze) - validates nested API response structure
 2. **Enhanced business logic validation** - prices, market cap, and volume must be positive
-3. **dbt tests** for not-null & uniqueness (Silver) — **66 dbt tests** + **119 unit tests**
+3. **dbt tests** for not-null & uniqueness (Silver) — **68 dbt tests** + **120 unit tests**
 4. **Type safety** with explicit casting (Silver)
 5. **Business logic validation** in Gold layer - OHLC consistency checks
 6. **Sample count tracking** to detect data gaps
@@ -538,19 +527,6 @@ Multiple validation layers ensure data reliability:
 just test-elementary  # Run only elementary-tagged tests
 just observability    # Generate HTML report (requires populated DB)
 ```
-
----
-
-## 📐 Architecture Decision Records
-
-Key technology choices documented in [`docs/adr/`](docs/adr/README.md):
-
-- [ADR-001](docs/adr/0001-use-duckdb.md) - Use DuckDB instead of PostgreSQL
-- [ADR-002](docs/adr/0002-use-dagster.md) - Use Dagster instead of Airflow
-- [ADR-003](docs/adr/0003-use-polars.md) - Use Polars instead of Pandas
-- [ADR-004](docs/adr/0004-use-local-dg-cli.md) - Use Local dg CLI instead of Docker Compose for Development
-
-Each ADR documents the context, decision, consequences, and rationale for major architectural choices.
 
 ---
 

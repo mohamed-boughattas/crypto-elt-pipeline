@@ -30,13 +30,13 @@ def check_database_exists() -> bool:
 
 def check_gold_layer_ready() -> bool:
     try:
-        with get_connection() as conn:
-            result = conn.execute("SELECT COUNT(*) FROM mart.fct_crypto_candlesticks").fetchone()
-            if result and result[0] > 0:
-                return True
-            st.error("❌ Gold layer tables are empty. Run `make pipeline` to load data.")
-            st.info("💡 The pipeline creates: Bronze → Silver → Gold layers")
-            return False
+        conn = get_connection()
+        result = conn.execute("SELECT COUNT(*) FROM mart.fct_crypto_candlesticks").fetchone()
+        if result and result[0] > 0:
+            return True
+        st.error("❌ Gold layer tables are empty. Run `make pipeline` to load data.")
+        st.info("💡 The pipeline creates: Bronze → Silver → Gold layers")
+        return False
     except Exception as e:
         st.error(f"❌ Error checking Gold layer: {str(e)}")
         st.info("💡 Run `make pipeline` to create the database and load data.")

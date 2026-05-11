@@ -227,14 +227,14 @@ uv run dbt test --select stg_crypto_prices
 
 ```text
 Running with dbt=1.11.3
-Found 2 models, 46 data tests, 1 source, 871 macros
+Found 2 models, 68 data tests, 1 source, 871 macros
 Completed successfully
-Done. PASS=46 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=46
+Done. PASS=68 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=68
 ```
 
 **Enhanced Test Coverage:**
 
-- **Total Tests**: 119 tests across all layers
+- **Total Tests**: 120 tests across all layers
 - **Source Tests (8)**: Schema validation for raw API data
 - **Silver Layer Tests (14)**: Data cleaning and validation
 - **Gold Layer Tests (24)**: Business logic and financial calculations
@@ -610,9 +610,9 @@ uv run dbt test --verbose
 
 **Quality Assurance Results:**
 
-- **Total Tests**: 119 tests across all layers
-- **Test Categories**: Configuration (21), Schema (12), Transform (20), Data Quality (7), Database (15), API (27), Indicators (17)
-- **Success Rate**: 100% (119/119 tests passing)
+- **Total Tests**: 120 tests across all layers
+- **Test Categories**: Configuration (21), Schema (12), Transform (21), Data Quality (7), Database (15), API (27), Indicators (17)
+- **Success Rate**: 100% (120/120 tests passing)
 - **Coverage**: All critical data paths, business rules, and integration scenarios
 - **Performance**: Tests complete in ~5 seconds
 - **Enhanced Coverage**: Includes comprehensive data quality gates and integration validation

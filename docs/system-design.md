@@ -437,7 +437,7 @@ fig = go.Figure(data=[go.Candlestick(
 - 10 cryptocurrencies, multiple years of data
 - All tests passing with 100% success rate
 - SQLFluff compliant with 0 warnings
-- **119 total tests** covering data quality, transformations, and integration
+- **120 total tests** covering data quality, transformations, and integration
 - **Enhanced data quality gates** with comprehensive validation
 
 ### 4. DuckDB Columnar Storage
@@ -458,7 +458,7 @@ fig = go.Figure(data=[go.Candlestick(
 
 - **Memory-efficient data processing**: Optimized DataFrame operations and connection pooling
 - **Smart refresh logic**: Always re-processes current day for intra-day accuracy
-- **Comprehensive test coverage**: 119 tests covering data quality, transformations, and integration
+- **Comprehensive test coverage**: 120 tests covering data quality, transformations, and integration
 - **Strict type checking**: pyright integration with CI for better code quality
 - **Enhanced error handling**: Better logging and user feedback throughout the pipeline
 - **Code quality automation**: Pre-commit hooks with Ruff, SQLFluff, and pyright

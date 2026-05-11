@@ -320,9 +320,9 @@ uv run dbt test
 
 ```text
 Running with dbt=1.11.3
-Found 2 models, 46 data tests, 1 source, 871 macros
+Found 2 models, 68 data tests, 1 source, 871 macros
 Completed successfully
-Done. PASS=46 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=46
+Done. PASS=68 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=68
 ```
 
 ---
@@ -341,7 +341,7 @@ ls -la .dagster_home
 
 ## 🧪 Running Tests
 
-The project includes a comprehensive test suite for validating core functionality with **119 tests** covering data quality, transformations, and integration scenarios.
+The project includes a comprehensive test suite for validating core functionality with **120 tests** covering data quality, transformations, and integration scenarios.
 
 ### Run All Tests
 
@@ -359,7 +359,7 @@ just test-cov
 
 ```text
 ============================= test session starts ==============================
-collected 119 items
+collected 120 items
 
 tests/test_api.py ...........................  PASSED  [ 23%]
 tests/test_config.py .....................     PASSED  [ 21%]
@@ -369,20 +369,18 @@ tests/test_indicators.py ................      PASSED  [ 17%]
 tests/test_schemas.py ...................      PASSED  [ 12%]
 tests/test_transform.py ..................      PASSED  [ 20%]
 
-======================= 119 passed in 3.57s =======================
+======================= 120 passed in 3.57s =======================
 ```
 
 ### Test Categories
 
 - **Configuration Tests (21)**: Path validation, project structure, and configuration loading
 - **Schema Tests (12)**: Pandera validation for raw and enhanced data
-- **Transform Tests (20)**: Data transformations, incremental loading, merging, and resampling
+- **Transform Tests (21)**: Data transformations, incremental loading, merging, and resampling
 - **Data Quality Tests (7)**: OHLC consistency and business logic validation
 - **Database Tests (15)**: DuckDB operations, timestamp retrieval, and data fetching
 - **API Tests (27)**: FastAPI endpoints, request validation, and error handling
 - **Indicator Tests (17)**: Technical indicator calculations (SMA, MaxDrawdown, Sharpe)
-
-> **Detailed testing guide:** See [Testing Guide](testing.md)
 
 ## 🔧 Code Quality Tools
 

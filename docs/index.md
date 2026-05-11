@@ -48,33 +48,6 @@ Detailed installation and configuration steps.
 
 ---
 
-### [🧪 Testing Guide](testing.md)
-
-Testing strategy and writing tests.
-
-**Topics covered:**
-
-- Testing philosophy
-- Running tests
-- Pre-commit hooks
-- Writing new tests
-- Test coverage
-
----
-
-### [🔌 API Reference](api-reference.md)
-
-REST API documentation and usage examples.
-
-**Topics covered:**
-
-- Available endpoints
-- Data model
-- Usage examples
-- Error handling
-
----
-
 ## 🎯 Quick Navigation
 
 | What you want to do        | Where to look                      |
@@ -82,7 +55,6 @@ REST API documentation and usage examples.
 | Understand the system      | [Architecture](system-design.md)   |
 | Install and run            | [Setup Guide](setup-guide.md)      |
 | Learn data transformations | [Data Modeling](data-modeling.md)  |
-| Run or write tests         | [Testing Guide](testing.md)        |
 | Configure environment      | [Setup Guide - Environment](setup-guide.md#configuration) |
 
 ---
