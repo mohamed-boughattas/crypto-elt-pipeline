@@ -58,14 +58,28 @@ ohlc_base as (
 with_price_changes as (
     select
         *,
-        price - lag(close_price) over (
+        close_price - lag(close_price) over (
             partition by coin
             order by trade_date
         ) as price_change
     from ohlc_base
 ),
 
-with_smas as (
+price_changes_base as (
+    select
+        coin,
+        trade_date,
+        open_price,
+        high_price,
+        low_price,
+        close_price,
+        daily_volume,
+        samples_count,
+        price_change
+    from with_price_changes
+),
+
+with_indicators as (
     select
         coin,
         trade_date,
@@ -91,11 +105,33 @@ with_smas as (
         {{ calculate_price_range('high_price', 'low_price') }} as price_range,
 
         {{ calculate_rsi('price_change', 14) }} as rsi,
-        {{ calculate_macd('price_change', 12, 26, 9) }} as macd,
-        {{ calculate_macd_signal('price_change', 12, 26, 9) }} as macd_signal,
-        {{ calculate_macd_histogram('price_change', 12, 26, 9) }} as macd_histogram
 
-    from with_price_changes
+        {{ calculate_macd('price_change', 12, 26, 9) }} as macd
+
+    from price_changes_base
+),
+
+indicators_base as (
+    select * from with_indicators
+),
+
+with_macd_signal as (
+    select
+        *,
+
+        avg(macd) over (
+            partition by coin
+            order by trade_date
+            rows between 8 preceding and current row
+        ) as macd_signal,
+
+        macd - avg(macd) over (
+            partition by coin
+            order by trade_date
+            rows between 8 preceding and current row
+        ) as macd_histogram
+
+    from indicators_base
 )
 
 select
@@ -121,5 +157,5 @@ select
     macd,
     macd_signal,
     macd_histogram
-from with_smas
+from with_macd_signal
 order by coin, trade_date
