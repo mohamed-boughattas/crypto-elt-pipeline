@@ -406,8 +406,8 @@ class TestSchemaValidation:
         with pytest.raises(ValueError, match="Expected exactly 1 row"):
             unnest_market_data(multi_df, "bitcoin", "usd")
 
-    def test_unnest_mismatched_lengths_raises(self):
-        """Mismatched list lengths raise ValueError."""
+    def test_unnest_mismatched_lengths_truncates(self):
+        """Mismatched list lengths should be truncated to minimum with a warning."""
         mismatch_df = pl.DataFrame(
             {
                 "prices": [[[1700000000000.0, 45000.50], [1700003600000.0, 45100.25]]],
@@ -416,5 +416,22 @@ class TestSchemaValidation:
             },
             strict=False,
         )
-        with pytest.raises(ValueError, match="Data length mismatch"):
-            unnest_market_data(mismatch_df, "bitcoin", "usd")
+        result = unnest_market_data(mismatch_df, "bitcoin", "usd")
+
+        assert result.height == 1
+        assert result["price"].item() == 45000.50
+        assert result["market_cap"].item() == 850000000000.0
+        assert result["volume"].item() == 25000000000.0
+
+    def test_unnest_all_empty_arrays_raises(self):
+        """All empty arrays after alignment should raise ValueError."""
+        empty_arrays_df = pl.DataFrame(
+            {
+                "prices": [[]],
+                "market_caps": [[]],
+                "total_volumes": [[]],
+            },
+            strict=False,
+        )
+        with pytest.raises(ValueError, match="No usable data"):
+            unnest_market_data(empty_arrays_df, "bitcoin", "usd")

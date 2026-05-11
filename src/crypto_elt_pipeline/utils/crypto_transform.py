@@ -4,9 +4,13 @@ This module provides functions for transforming raw API responses into
 usable time-series data, including validation, unnesting, and resampling.
 """
 
+import logging
+
 import pandera.polars as pa
 import pendulum
 import polars as pl
+
+logger = logging.getLogger(__name__)
 
 
 class RawMarketChartSchema(pa.DataFrameModel):
@@ -124,12 +128,29 @@ def unnest_market_data(raw_df: pl.DataFrame, coin_id: str, vs_currency: str) -> 
     market_caps_data = raw_df["market_caps"].item()
     volumes_data = raw_df["total_volumes"].item()
 
-    # Validate that all lists have the same length
-    n_records = len(prices_data)
-    if len(market_caps_data) != n_records or len(volumes_data) != n_records:
+    n_prices = len(prices_data)
+    n_caps = len(market_caps_data)
+    n_volumes = len(volumes_data)
+    n_records = min(n_prices, n_caps, n_volumes)
+
+    if n_prices != n_caps or n_prices != n_volumes:
+        logger.warning(
+            "CoinGecko API returned mismatched array lengths for %s: "
+            "prices=%d, market_caps=%d, volumes=%d. Truncating to %d records.",
+            coin_id,
+            n_prices,
+            n_caps,
+            n_volumes,
+            n_records,
+        )
+        prices_data = prices_data[:n_records]
+        market_caps_data = market_caps_data[:n_records]
+        volumes_data = volumes_data[:n_records]
+
+    if n_records == 0:
         raise ValueError(
-            f"Data length mismatch: prices={len(prices_data)}, "
-            f"market_caps={len(market_caps_data)}, volumes={len(volumes_data)}"
+            f"No usable data for {coin_id}: all arrays empty after alignment "
+            f"(prices={n_prices}, market_caps={n_caps}, volumes={n_volumes})"
         )
 
     # Extract columns from nested lists using Polars-native operations
