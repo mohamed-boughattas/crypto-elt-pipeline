@@ -23,7 +23,7 @@
 
 ```bash
 # Setup (run first before dg dev or dg launch)
-just setup          # uv sync + create .dagster_home/dagster.yaml (required for Dagster)
+just setup          # uv sync + create .dagster_home/dagster.yaml (telemetry opt-out)
 just generate-seed  # Regenerate seeds/coins_config.csv from config/coins.yaml
 
 # Pipeline
