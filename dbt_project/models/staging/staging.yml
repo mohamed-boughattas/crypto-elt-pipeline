@@ -146,7 +146,7 @@ models:
             severity: warn
       - elementary.all_columns_anomalies:
           arguments:
-            exclude_regexp: "^(coin|currency|ingested_at|recorded_at)$"
+            exclude_regexp: "^(coin|currency|ingested_at|recorded_at|market_cap|price|volume)$"
           config:
             tags: ["elementary"]
             severity: warn

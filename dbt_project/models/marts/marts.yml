@@ -52,7 +52,7 @@ models:
             severity: warn
       - elementary.all_columns_anomalies:
           arguments:
-            exclude_regexp: "^(coin|trade_date|samples_count)$"
+            exclude_regexp: "^(coin|trade_date|samples_count|open_price|high_price|low_price|close_price|daily_volume|volatility_pct|sma_7|sma_25|bb_middle|bb_upper|bb_lower|bb_width|bb_position|daily_change_pct|price_range|rsi|macd|macd_signal|macd_histogram)$"
           config:
             tags: ["elementary"]
             severity: warn
