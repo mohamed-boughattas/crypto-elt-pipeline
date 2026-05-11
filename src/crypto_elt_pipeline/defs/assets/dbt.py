@@ -49,16 +49,14 @@ translator_instance = CustomDagsterDbtTranslator(
 
 # 4. dbt Asset Definitions
 # Materializes dbt models and executes tests using the Select-based build command.
-# Exclude seeds from asset selection to avoid the DagsterInvariantViolationError
+# Dagster auto-injects --select/--exclude based on the decorator and execution context.
+# Do NOT pass explicit --select in dbt.cli() — it conflicts with Dagster's subsetted execution.
+# Exclude elementary tests from the pipeline — they're run separately via `just test-elementary`.
 @dbt_assets(
     manifest=dbt_project.manifest_path,
     dagster_dbt_translator=translator_instance,
     select="fqn:*",
-    exclude="fqn:coins_config",  # Exclude seed from asset selection
+    exclude="fqn:coins_config tag:elementary",
 )
 def crypto_dbt_assets(context: AssetExecutionContext, dbt: DbtCliResource) -> Any:
-    # 'build' runs models and checks atomically; results are streamed to the UI.
-    # Exclude seeds from the CLI command to avoid the unselected output error
-    yield from dbt.cli(
-        ["build", "--select", "fqn:*", "--exclude", "fqn:coins_config"], context=context
-    ).stream()
+    yield from dbt.cli(["build", "--exclude", "tag:elementary"], context=context).stream()

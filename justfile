@@ -17,7 +17,7 @@ default:
 setup:
     uv sync
     mkdir -p data {{DAGSTER_HOME}}
-    touch {{DAGSTER_HOME}}/dagster.yaml
+    printf 'telemetry:\n  enabled: false\n' > {{DAGSTER_HOME}}/dagster.yaml
 
 # Generate dbt seed from coins.yaml
 generate-seed:
@@ -57,16 +57,20 @@ list-coins:
 
 # Full pipeline: Bronze → Silver → Gold (all enabled coins)
 pipeline: setup validate-coins
-    @docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
-    @echo "⚡ Running pipeline..."
-    @echo ""
-    @echo "📦 Bronze Layer: Ingesting raw data..."
-    @for coin in {{COINS}}; do uv run dg launch --assets 'raw/crypto_prices' --partition $$coin || exit 1; done
-    @echo ""
-    @echo "🔄 Silver & Gold Layers: Running dbt transformations..."
-    @uv run dg launch --assets 'staging/stg_crypto_prices,mart/fct_crypto_candlesticks' || exit 1
-    @echo ""
-    @echo "✅ Pipeline complete!"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker info >/dev/null 2>&1 || { echo "❌ Docker is not running!"; exit 1; }
+    echo "⚡ Running pipeline..."
+    echo ""
+    echo "📦 Bronze Layer: Ingesting raw data..."
+    for coin in {{COINS}}; do
+        uv run dg launch --assets 'raw/crypto_prices' --partition "$coin" || exit 1
+    done
+    echo ""
+    echo "🔄 Silver & Gold Layers: Running dbt transformations..."
+    uv run dg launch --assets 'staging/stg_crypto_prices,mart/fct_crypto_candlesticks' || exit 1
+    echo ""
+    echo "✅ Pipeline complete!"
 
 # Single coin pipeline: just pipeline-coin bitcoin
 pipeline-coin coin:
@@ -105,6 +109,10 @@ api:
 # Testing & Quality
 # =============================================================================
 
+# Smoke test all justfile recipes (verifies each recipe runs successfully)
+test-smoke:
+    bash scripts/smoke_test.sh
+
 # Run tests
 test: setup
     uv run pytest tests/ -v
@@ -139,8 +147,9 @@ lint-dbt-fix: setup
     cd dbt_project && uv run sqlfluff fix models/
 
 # Run dbt tests
+# Excludes all_columns_anomalies tests: DuckDB DECIMAL(28,6) overflow with crypto-scale values
 test-dbt: setup
-    cd dbt_project && uv run dbt test
+    cd dbt_project && uv run dbt test --exclude elementary_all_columns_anomalies
 
 # Install dbt packages (run after editing packages.yml)
 dbt-deps: setup
@@ -153,7 +162,16 @@ test-elementary: setup
 # Generate elementary observability HTML report (requires populated DB)
 # Uses uvx because elementary-data conflicts with airbyte's pytz pin
 observability: dbt-deps
-    cd dbt_project && uvx --with 'elementary-data[duckdb]' edr report
+    #!/usr/bin/env bash
+      set -euo pipefail
+      ABS_DB_PATH="$(python -c "import os; print(os.path.abspath('data/crypto.duckdb'))")"
+      cd dbt_project
+      uv run dbt run -s elementary
+      uv run dbt seed
+      uv run dbt test --exclude tag:elementary
+      sed -i.bak "s|path: '../data/crypto.duckdb'|path: '${ABS_DB_PATH}'|" profiles.yml
+      uvx --from 'elementary-data[duckdb]' --python 3.12 edr report --profiles-dir .
+      mv profiles.yml.bak profiles.yml
 
 # =============================================================================
 # Maintenance
